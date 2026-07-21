@@ -1,0 +1,383 @@
+﻿<!DOCTYPE html>
+<html lang="mk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#211D18">
+<title>radost — келнер</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<style>
+  :root{
+    --ink:#211D18; --ink-soft:#4A423A; --bg:#F2EDE1; --card:#FBF9F4; --gray:#948C7D;
+    --line:rgba(33,29,24,0.09); --gold:#EFAE26; --gold-dark:#C88A17; --gold-wash:#FBEBC8;
+    --green:#3E8E5A; --red:#C24A3B;
+    --shadow-sm:0 2px 8px rgba(76,58,20,0.06); --shadow-md:0 14px 34px rgba(43,32,10,0.14);
+    --radius-lg:18px; --radius-md:12px;
+    --font-display:'Nunito',sans-serif; --font-body:'Inter',sans-serif; --font-mono:'Space Mono',monospace;
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:var(--font-body); -webkit-font-smoothing:antialiased; }
+  button{ font-family:inherit; cursor:pointer; touch-action:manipulation; }
+  input{ font-family:inherit; }
+
+  /* ---------- login ---------- */
+  .login-wrap{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .login-card{
+    background:var(--card); border-radius:var(--radius-lg); box-shadow:var(--shadow-md);
+    padding:32px 28px; width:100%; max-width:340px; text-align:center;
+  }
+  .login-card .logo{ font-family:var(--font-display); font-weight:900; font-size:28px; margin-bottom:2px; }
+  .login-card .logo span{ background:var(--gold); padding:0 5px; border-radius:6px; }
+  .login-card .sub{ font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:var(--gray); font-weight:700; margin-bottom:24px; }
+  .field{ text-align:left; margin-bottom:14px; }
+  .field label{ font-size:12px; font-weight:700; color:var(--ink-soft); display:block; margin-bottom:5px; }
+  .field input{
+    width:100%; border:1px solid var(--line); border-radius:var(--radius-md); padding:12px 14px;
+    font-size:15px; background:#fff;
+  }
+  .field input:focus{ outline:2px solid var(--gold-dark); }
+  .login-btn{
+    width:100%; background:var(--ink); color:var(--gold-wash); border:none; padding:14px;
+    border-radius:999px; font-weight:800; font-size:14px; margin-top:8px;
+  }
+  .login-btn:disabled{ opacity:0.5; }
+  .err{ color:var(--red); font-size:12.5px; margin-top:12px; min-height:16px; }
+  .back-link{ display:inline-block; margin-top:18px; font-size:12px; color:var(--gray); text-decoration:none; }
+
+  /* ---------- app shell ---------- */
+  #appScreen{ display:none; }
+  header.top{
+    position:sticky; top:0; z-index:10; background:var(--ink); color:var(--gold-wash);
+    padding:calc(16px + env(safe-area-inset-top)) 18px 14px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  header.top .hi{ font-family:var(--font-display); font-weight:900; font-size:18px; }
+  header.top .hi small{ display:block; font-family:var(--font-body); font-weight:600; font-size:11px; opacity:0.6; text-transform:none; letter-spacing:0; }
+  header.top button{
+    background:rgba(255,255,255,0.1); color:var(--gold-wash); border:none; border-radius:999px;
+    padding:8px 14px; font-size:12px; font-weight:700;
+  }
+
+  nav.tabs{ display:flex; gap:8px; padding:14px 18px 0; max-width:640px; margin:0 auto; }
+  nav.tabs button{
+    flex:1; background:var(--card); border:1px solid var(--line); border-radius:999px; padding:9px;
+    font-size:12.5px; font-weight:800; color:var(--ink-soft);
+  }
+  nav.tabs button.active{ background:var(--gold); color:var(--ink); border-color:transparent; }
+
+  main{ max-width:640px; margin:0 auto; padding:16px 18px 60px; }
+  .empty{ text-align:center; color:var(--gray); font-size:13.5px; margin-top:60px; line-height:1.6; }
+
+  .order-card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-sm); padding:16px; margin-bottom:14px; animation:fadeIn .25s ease;
+  }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+  .oc-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .oc-num{ font-family:var(--font-mono); font-weight:700; font-size:16px; }
+  .badge{
+    font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.04em;
+    padding:4px 10px; border-radius:999px;
+  }
+  .badge.new{ background:var(--gold-wash); color:var(--gold-dark); }
+  .badge.progress{ background:#E4EEE8; color:var(--green); }
+  .oc-meta{ font-size:12.5px; color:var(--ink-soft); margin-bottom:8px; display:flex; gap:10px; flex-wrap:wrap; }
+  .oc-items{ font-size:13.5px; line-height:1.7; border-top:1px dashed var(--line); border-bottom:1px dashed var(--line); padding:8px 0; margin-bottom:8px; }
+  .oc-items .it{ display:flex; justify-content:space-between; }
+  .oc-note{ font-size:12.5px; background:var(--gold-wash); color:var(--ink-soft); padding:8px 10px; border-radius:8px; margin-bottom:10px; }
+  .oc-total{ display:flex; justify-content:space-between; font-weight:800; font-size:14.5px; margin-bottom:12px; }
+  .oc-actions{ display:flex; gap:8px; }
+  .oc-actions button{ flex:1; padding:11px; border-radius:999px; font-weight:800; font-size:13px; border:none; }
+  .btn-claim{ background:var(--ink); color:var(--gold-wash); }
+  .btn-complete{ background:var(--gold); color:var(--ink); }
+  .btn-print{ background:transparent; border:1px solid var(--line) !important; color:var(--ink-soft); flex:0 0 44px; }
+
+  .print-receipt{ display:none; }
+  @media print{
+    body *{ visibility:hidden; }
+    .print-receipt, .print-receipt *{ visibility:visible; }
+    .print-receipt{ display:block; position:absolute; top:0; left:0; width:100%; padding:14px; font-family:var(--font-mono); color:#000; font-size:12px; }
+    .print-receipt h3{ text-align:center; font-size:15px; margin:0 0 4px; }
+    .print-receipt .r-line{ display:flex; justify-content:space-between; margin:2px 0; }
+    .print-receipt hr{ border:none; border-top:1px dashed #000; margin:8px 0; }
+    .print-receipt .slip{ page-break-after:always; padding-bottom:10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="login-wrap" id="loginScreen">
+  <div class="login-card">
+    <div class="logo">ra<span>do</span>st</div>
+    <div class="sub">Персонал · Келнер</div>
+    <div class="field">
+      <label for="email">Е-пошта</label>
+      <input id="email" type="email" autocomplete="username" placeholder="ime@radost.mk">
+    </div>
+    <div class="field">
+      <label for="pass">Лозинка</label>
+      <input id="pass" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button class="login-btn" id="loginBtn">Најави се</button>
+    <div class="err" id="loginErr"></div>
+    <a class="back-link" href="index.html">← Назад кон менито</a>
+  </div>
+</div>
+
+<div id="appScreen">
+  <header class="top">
+    <div class="hi" id="hiName">Здраво<small id="hiSub">—</small></div>
+    <button id="logoutBtn">Одјави се</button>
+  </header>
+  <nav class="tabs">
+    <button class="active" data-tab="queue">На ред</button>
+    <button data-tab="done">Завршени денес</button>
+  </nav>
+  <main id="mainRoot"></main>
+</div>
+
+<div class="print-receipt" id="printReceipt"></div>
+
+<script>
+const loginScreen = document.getElementById('loginScreen');
+const appScreen = document.getElementById('appScreen');
+const loginBtn = document.getElementById('loginBtn');
+const loginErr = document.getElementById('loginErr');
+const emailInp = document.getElementById('email');
+const passInp = document.getElementById('pass');
+
+let myUid = null, myName = '', myRole = '';
+let activeTab = 'queue';
+let mineMap = new Map();       // orders assigned to me, not completed
+let unassignedMap = new Map(); // orders waiting for any waiter
+let doneList = [];             // completed today, by me
+
+loginBtn.addEventListener('click', async ()=>{
+  loginErr.textContent = '';
+  loginBtn.disabled = true;
+  try{
+    await auth.signInWithEmailAndPassword(emailInp.value.trim(), passInp.value);
+  }catch(err){
+    loginErr.textContent = 'Погрешна е-пошта или лозинка.';
+  }finally{
+    loginBtn.disabled = false;
+  }
+});
+[emailInp, passInp].forEach(el=> el.addEventListener('keydown', e=>{ if(e.key==='Enter') loginBtn.click(); }));
+
+document.getElementById('logoutBtn').addEventListener('click', ()=> auth.signOut());
+
+let unsubMine=null, unsubUnassigned=null;
+
+auth.onAuthStateChanged(async user=>{
+  if(unsubMine){ unsubMine(); unsubMine=null; }
+  if(unsubUnassigned){ unsubUnassigned(); unsubUnassigned=null; }
+
+  if(!user){
+    loginScreen.style.display='flex'; appScreen.style.display='none';
+    return;
+  }
+  try{
+    const [staffDoc, roleDoc] = await Promise.all([
+      db.collection('staff').doc(user.uid).get(),
+      db.collection('roles').doc(user.uid).get()
+    ]);
+    const role = roleDoc.exists ? roleDoc.data().role : null;
+    if(role !== 'waiter' && role !== 'admin'){
+      loginErr.textContent = 'Оваа сметка нема пристап до келнерскиот панел.';
+      await auth.signOut();
+      return;
+    }
+    myUid = user.uid;
+    myRole = role;
+    myName = staffDoc.exists ? staffDoc.data().name : (user.email || 'Келнер');
+    document.getElementById('hiSub').textContent = myName;
+    loginScreen.style.display='none'; appScreen.style.display='block';
+    startListeners();
+  }catch(err){
+    console.error(err);
+    loginErr.textContent = 'Грешка при најава. Обиди се повторно.';
+    await auth.signOut();
+  }
+});
+
+function startListeners(){
+  unsubMine = db.collection('orders')
+    .where('waiterId','==', myUid)
+    .where('status','in', ['new','in_progress'])
+    .onSnapshot(snap=>{
+      mineMap = new Map(snap.docs.map(d=>[d.id, {id:d.id, ...d.data()}]));
+      render();
+    }, err=> console.error('mine listener', err));
+
+  unsubUnassigned = db.collection('orders')
+    .where('waiterId','==', null)
+    .where('status','==', 'new')
+    .onSnapshot(snap=>{
+      unassignedMap = new Map(snap.docs.map(d=>[d.id, {id:d.id, ...d.data()}]));
+      render();
+    }, err=> console.error('unassigned listener', err));
+
+  loadDoneToday();
+}
+
+async function loadDoneToday(){
+  const start = new Date(); start.setHours(0,0,0,0);
+  const snap = await db.collection('orders')
+    .where('waiterId','==', myUid)
+    .where('status','==','completed')
+    .get();
+  doneList = snap.docs
+    .map(d=>({id:d.id, ...d.data()}))
+    .filter(o=> o.completedAt && o.completedAt.toDate() >= start)
+    .sort((a,b)=> b.completedAt.toDate() - a.completedAt.toDate());
+  if(activeTab==='done') render();
+}
+
+document.querySelectorAll('nav.tabs button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    activeTab = b.dataset.tab;
+    document.querySelectorAll('nav.tabs button').forEach(x=> x.classList.toggle('active', x===b));
+    if(activeTab==='done') loadDoneToday();
+    render();
+  });
+});
+
+function ts(t){ return t && t.toDate ? t.toDate() : new Date(); }
+function fmtTime(d){ return d.toLocaleTimeString('mk-MK', {hour:'2-digit',minute:'2-digit'}); }
+
+function render(){
+  const root = document.getElementById('mainRoot');
+  root.innerHTML = '';
+
+  if(activeTab==='queue'){
+    const all = [...mineMap.values(), ...unassignedMap.values()]
+      .sort((a,b)=> ts(a.createdAt) - ts(b.createdAt));
+    if(all.length===0){
+      root.innerHTML = '<div class="empty">Нема нарачки на ред.<br>Овде ќе се појават новите нарачки во живо.</div>';
+      return;
+    }
+    all.forEach(o=> root.appendChild(renderCard(o)));
+  } else {
+    if(doneList.length===0){
+      root.innerHTML = '<div class="empty">Сè уште немаш завршено нарачки денес.</div>';
+      return;
+    }
+    doneList.forEach(o=> root.appendChild(renderCard(o, true)));
+  }
+}
+
+function renderCard(o, done=false){
+  const card = document.createElement('div');
+  card.className = 'order-card';
+  const isMine = o.waiterId === myUid;
+  const badge = done ? '' : (o.status==='in_progress' ? '<span class="badge progress">Во тек</span>' : '<span class="badge new">Нова</span>');
+  card.innerHTML = `
+    <div class="oc-head"><span class="oc-num">#${o.orderNumber}</span>${badge}</div>
+    <div class="oc-meta">
+      <span>${o.type==='table' ? 'Маса ' + (o.table||'—') : 'За понесување'}</span>
+      <span>${fmtTime(ts(o.createdAt))}</span>
+      ${o.waiterName ? `<span>${o.waiterName}</span>` : ''}
+    </div>
+    <div class="oc-items">
+      ${o.items.map(i=>`<div class="it"><span>${i.qty}× ${i.name}${i.vol?' ('+i.vol+')':''}</span><span>${i.price*i.qty} ден</span></div>`).join('')}
+    </div>
+    ${o.note ? `<div class="oc-note">${o.note}</div>` : ''}
+    <div class="oc-total"><span>Вкупно</span><span>${o.total} ден</span></div>
+    <div class="oc-actions"></div>
+  `;
+  const actions = card.querySelector('.oc-actions');
+
+  const printBtn = document.createElement('button');
+  printBtn.className = 'btn-print';
+  printBtn.textContent = '🖨';
+  printBtn.title = 'Печати';
+  printBtn.addEventListener('click', ()=> printOrder(o));
+  actions.appendChild(printBtn);
+
+  if(!done){
+    if(!isMine){
+      const claimBtn = document.createElement('button');
+      claimBtn.className = 'btn-claim';
+      claimBtn.textContent = 'Преземи';
+      claimBtn.addEventListener('click', ()=> claimOrder(o));
+      actions.appendChild(claimBtn);
+    } else {
+      const completeBtn = document.createElement('button');
+      completeBtn.className = 'btn-complete';
+      completeBtn.textContent = 'Заврши нарачка';
+      completeBtn.addEventListener('click', ()=> completeOrder(o));
+      actions.appendChild(completeBtn);
+    }
+  }
+  return card;
+}
+
+async function claimOrder(o){
+  try{
+    await db.collection('orders').doc(o.id).update({
+      waiterId: myUid, waiterName: myName, status: 'in_progress'
+    });
+  }catch(err){ console.error(err); alert('Не успеа да се преземе нарачката.'); }
+}
+
+async function completeOrder(o){
+  try{
+    await db.collection('orders').doc(o.id).update({
+      status:'completed', waiterId: myUid, waiterName: myName,
+      completedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    deductInventoryForOrder(o).catch(err=> console.error('inventory deduction failed', err));
+    loadDoneToday();
+  }catch(err){ console.error(err); alert('Не успеа да се заврши нарачката.'); }
+}
+
+async function deductInventoryForOrder(order){
+  for(const item of order.items){
+    const snap = await db.collection('inventory').where('linkedMenuId','==', item.id).get();
+    for(const doc of snap.docs){
+      const inv = doc.data();
+      const used = (inv.usagePerOrder || 1) * item.qty;
+      await db.runTransaction(async tx=>{
+        const fresh = await tx.get(doc.ref);
+        const newQty = (fresh.data().qty || 0) - used;
+        tx.update(doc.ref, { qty:newQty });
+      });
+      await db.collection('procurements').add({
+        inventoryId: doc.id, inventoryName: inv.name, delta: -used, type:'sale',
+        orderId: order.id, orderNumber: order.orderNumber,
+        note: `Продажба — нарачка #${order.orderNumber}`,
+        createdBy: myName, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }
+}
+
+function printOrder(o){
+  const el = document.getElementById('printReceipt');
+  const time = fmtTime(ts(o.createdAt));
+  const itemsHtml = o.items.map(i=>`<div class="r-line"><span>${i.qty}× ${i.name}${i.vol?' ('+i.vol+')':''}</span><span>${i.price*i.qty} ден</span></div>`).join('');
+  const slip = (label)=> `
+    <div class="slip">
+      <h3>radost — ${label}</h3>
+      <div class="r-line"><span>Нарачка</span><b>#${o.orderNumber}</b></div>
+      <div class="r-line"><span>${o.type==='table' ? 'Маса' : 'Понеси'}</span><span>${o.type==='table' ? (o.table||'—') : ''}</span></div>
+      <div class="r-line"><span>Келнер</span><span>${o.waiterName||myName}</span></div>
+      <div class="r-line"><span>Време</span><span>${time}</span></div>
+      <hr>${itemsHtml}<hr>
+      <div class="r-line"><b>Вкупно</b><b>${o.total} ден</b></div>
+      ${o.note ? `<div class="r-line"><span>Забелешка</span><span>${o.note}</span></div>` : ''}
+    </div>`;
+  el.innerHTML = slip('примерок за клиент') + slip('примерок за келнер');
+  window.print();
+}
+</script>
+</body>
+</html>

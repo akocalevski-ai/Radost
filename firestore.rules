@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function myRole() {
+      return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role;
+    }
+    function isAdmin() { return isSignedIn() && myRole() == 'admin'; }
+    function isStaff() { return isSignedIn() && (myRole() == 'admin' || myRole() == 'waiter'); }
+
+    // Orders placed by customers (no login) and worked by staff
+    match /orders/{orderId} {
+      allow create: if true;           // customers place orders without an account
+      allow read, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // Atomic counter used to generate order numbers
+    match /meta/{docId} {
+      allow read, write: if true;      // needed by the public ordering page
+    }
+
+    // Waiter directory shown in the customer app's "waiter" dropdown
+    match /staff/{staffId} {
+      allow read: if true;             // public read so customers can see waiter names
+      allow write: if isAdmin();
+    }
+
+    // uid -> {role: 'admin' | 'waiter'}, used by the rules above
+    match /roles/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Inventory items
+    match /inventory/{itemId} {
+      allow read: if isStaff();
+      allow update: if isStaff();      // waiters need this to auto-deduct stock on order completion
+      allow create, delete: if isAdmin();
+    }
+
+    // Procurement / sale-deduction log
+    match /procurements/{entryId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,517 @@
+﻿<!DOCTYPE html>
+<html lang="mk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#211D18">
+<title>radost — админ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<style>
+  :root{
+    --ink:#211D18; --ink-soft:#4A423A; --bg:#F2EDE1; --card:#FBF9F4; --gray:#948C7D;
+    --line:rgba(33,29,24,0.09); --gold:#EFAE26; --gold-dark:#C88A17; --gold-wash:#FBEBC8;
+    --green:#3E8E5A; --red:#C24A3B;
+    --shadow-sm:0 2px 8px rgba(76,58,20,0.06); --shadow-md:0 14px 34px rgba(43,32,10,0.14);
+    --radius-lg:16px; --radius-md:10px;
+    --font-display:'Nunito',sans-serif; --font-body:'Inter',sans-serif; --font-mono:'Space Mono',monospace;
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:var(--font-body); -webkit-font-smoothing:antialiased; }
+  button{ font-family:inherit; cursor:pointer; }
+  input, select{ font-family:inherit; }
+
+  .login-wrap{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .login-card{ background:var(--card); border-radius:var(--radius-lg); box-shadow:var(--shadow-md); padding:32px 28px; width:100%; max-width:340px; text-align:center; }
+  .login-card .logo{ font-family:var(--font-display); font-weight:900; font-size:28px; }
+  .login-card .logo span{ background:var(--gold); padding:0 5px; border-radius:6px; }
+  .login-card .sub{ font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:var(--gray); font-weight:700; margin:2px 0 24px; }
+  .field{ text-align:left; margin-bottom:14px; }
+  .field label{ font-size:12px; font-weight:700; color:var(--ink-soft); display:block; margin-bottom:5px; }
+  .field input, .field select{ width:100%; border:1px solid var(--line); border-radius:var(--radius-md); padding:11px 13px; font-size:15px; background:#fff; }
+  .field input:focus, .field select:focus{ outline:2px solid var(--gold-dark); }
+  .login-btn{ width:100%; background:var(--ink); color:var(--gold-wash); border:none; padding:14px; border-radius:999px; font-weight:800; font-size:14px; margin-top:6px; }
+  .err{ color:var(--red); font-size:12.5px; margin-top:12px; min-height:16px; }
+  .back-link{ display:inline-block; margin-top:16px; font-size:12px; color:var(--gray); text-decoration:none; }
+
+  #appScreen{ display:none; }
+  header.top{
+    position:sticky; top:0; z-index:10; background:var(--ink); color:var(--gold-wash);
+    padding:calc(16px + env(safe-area-inset-top)) 18px 14px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  header.top .logo{ font-family:var(--font-display); font-weight:900; font-size:18px; }
+  header.top button{ background:rgba(255,255,255,0.1); color:var(--gold-wash); border:none; border-radius:999px; padding:8px 14px; font-size:12px; font-weight:700; }
+
+  nav.tabs{ display:flex; gap:6px; padding:14px 18px 0; max-width:900px; margin:0 auto; overflow-x:auto; }
+  nav.tabs button{ flex:0 0 auto; background:var(--card); border:1px solid var(--line); border-radius:999px; padding:9px 16px; font-size:12.5px; font-weight:800; color:var(--ink-soft); white-space:nowrap; }
+  nav.tabs button.active{ background:var(--gold); color:var(--ink); border-color:transparent; }
+
+  main{ max-width:900px; margin:0 auto; padding:18px; }
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+
+  .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+  .stat{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow-sm); }
+  .stat .lbl{ font-size:11.5px; color:var(--gray); font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
+  .stat .val{ font-family:var(--font-display); font-weight:900; font-size:24px; margin-top:4px; }
+
+  .section-title{ font-family:var(--font-display); font-weight:900; font-size:15px; text-transform:uppercase; letter-spacing:0.03em; margin:26px 0 12px; display:flex; align-items:center; gap:10px; }
+  .section-title::after{ content:""; flex:1; height:1px; background:var(--line); }
+
+  table{ width:100%; border-collapse:collapse; background:var(--card); border-radius:var(--radius-md); overflow:hidden; box-shadow:var(--shadow-sm); }
+  th, td{ text-align:left; padding:10px 12px; font-size:13px; border-bottom:1px solid var(--line); }
+  th{ background:var(--pill-bg,#E9E2D0); font-size:11.5px; text-transform:uppercase; letter-spacing:0.02em; color:var(--ink-soft); }
+  tr:last-child td{ border-bottom:none; }
+  .low{ color:var(--red); font-weight:800; }
+
+  .filter-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .filter-row button{ background:var(--card); border:1px solid var(--line); border-radius:999px; padding:7px 14px; font-size:12px; font-weight:700; color:var(--ink-soft); }
+  .filter-row button.active{ background:var(--ink); color:var(--gold-wash); border-color:transparent; }
+
+  .order-row{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .order-row .l{ font-size:13px; }
+  .order-row .l b{ font-family:var(--font-mono); }
+  .badge{ font-size:10px; font-weight:800; text-transform:uppercase; padding:4px 9px; border-radius:999px; }
+  .badge.new{ background:var(--gold-wash); color:var(--gold-dark); }
+  .badge.progress{ background:#E4EEE8; color:var(--green); }
+  .badge.completed{ background:#E7E2D6; color:var(--ink-soft); }
+
+  .card-form{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow-sm); margin-bottom:20px; }
+  .card-form .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:10px; }
+  .card-form label{ font-size:11.5px; font-weight:700; color:var(--ink-soft); display:block; margin-bottom:4px; }
+  .card-form input, .card-form select{ width:100%; border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:14px; background:#fff; }
+  .card-form .checkbox-row{ display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:10px; }
+  .btn-primary{ background:var(--gold); color:var(--ink); border:none; padding:11px 18px; border-radius:999px; font-weight:800; font-size:13px; }
+  .btn-ghost{ background:transparent; border:1px solid var(--line); padding:7px 12px; border-radius:999px; font-weight:700; font-size:12px; color:var(--ink-soft); }
+  .msg{ font-size:12.5px; margin-top:8px; }
+  .msg.ok{ color:var(--green); } .msg.bad{ color:var(--red); }
+
+  .inv-row{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:8px; }
+  .inv-row .top{ display:flex; justify-content:space-between; align-items:center; }
+  .inv-row .name{ font-weight:700; font-size:14px; }
+  .inv-row .qty{ font-family:var(--font-mono); font-weight:700; }
+  .inv-row .meta{ font-size:11.5px; color:var(--gray); margin-top:2px; }
+  .inv-row .add-stock{ display:flex; gap:6px; margin-top:10px; }
+  .inv-row .add-stock input{ width:80px; border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px; }
+  .inv-row .add-stock button{ background:var(--ink); color:var(--gold-wash); border:none; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; }
+
+  .empty{ text-align:center; color:var(--gray); font-size:13px; margin:30px 0; }
+</style>
+</head>
+<body>
+
+<div class="login-wrap" id="loginScreen">
+  <div class="login-card">
+    <div class="logo">ra<span>do</span>st</div>
+    <div class="sub">Администратор</div>
+    <div class="field"><label for="email">Е-пошта</label><input id="email" type="email" autocomplete="username"></div>
+    <div class="field"><label for="pass">Лозинка</label><input id="pass" type="password" autocomplete="current-password"></div>
+    <button class="login-btn" id="loginBtn">Најави се</button>
+    <div class="err" id="loginErr"></div>
+    <a class="back-link" href="index.html">← Назад кон менито</a>
+  </div>
+</div>
+
+<div id="appScreen">
+  <header class="top">
+    <div class="logo">radost · админ</div>
+    <button id="logoutBtn">Одјави се</button>
+  </header>
+  <nav class="tabs">
+    <button class="active" data-tab="overview">Преглед</button>
+    <button data-tab="orders">Нарачки</button>
+    <button data-tab="staff">Келнери</button>
+    <button data-tab="inventory">Инвентар</button>
+  </nav>
+
+  <main>
+    <!-- OVERVIEW -->
+    <section class="panel active" id="panel-overview">
+      <div class="stat-grid">
+        <div class="stat"><div class="lbl">Промет денес</div><div class="val" id="statToday">—</div></div>
+        <div class="stat"><div class="lbl">Промет 7 дена</div><div class="val" id="statWeek">—</div></div>
+        <div class="stat"><div class="lbl">Нарачки денес</div><div class="val" id="statOrdersToday">—</div></div>
+        <div class="stat"><div class="lbl">Активни нарачки</div><div class="val" id="statActive">—</div></div>
+      </div>
+      <div class="section-title">Најпродавани денес</div>
+      <table><thead><tr><th>Артикал</th><th>Продадено</th><th>Приход</th></tr></thead><tbody id="topSellersBody"><tr><td colspan="3">Се вчитува…</td></tr></tbody></table>
+    </section>
+
+    <!-- ORDERS -->
+    <section class="panel" id="panel-orders">
+      <div class="filter-row" id="orderFilters">
+        <button data-f="all" class="active">Сите</button>
+        <button data-f="new">Нови</button>
+        <button data-f="in_progress">Во тек</button>
+        <button data-f="completed">Завршени</button>
+      </div>
+      <div id="ordersList"><div class="empty">Се вчитува…</div></div>
+    </section>
+
+    <!-- STAFF -->
+    <section class="panel" id="panel-staff">
+      <div class="card-form">
+        <div class="section-title" style="margin-top:0">Нова сметка</div>
+        <div class="grid">
+          <div><label>Име</label><input id="newStaffName" placeholder="напр. Марија"></div>
+          <div><label>Е-пошта</label><input id="newStaffEmail" type="email" placeholder="marija@radost.mk"></div>
+          <div><label>Лозинка</label><input id="newStaffPass" type="password" placeholder="мин. 6 карактери"></div>
+        </div>
+        <div class="checkbox-row"><input type="checkbox" id="newStaffAdmin"><label for="newStaffAdmin" style="margin:0">Направи администратор (нема да се појавува кај келнерите)</label></div>
+        <button class="btn-primary" id="addStaffBtn">Додади</button>
+        <div class="msg" id="staffMsg"></div>
+      </div>
+      <div class="section-title">Келнери</div>
+      <div id="staffList"><div class="empty">Се вчитува…</div></div>
+    </section>
+
+    <!-- INVENTORY -->
+    <section class="panel" id="panel-inventory">
+      <div class="card-form">
+        <div class="section-title" style="margin-top:0">Нов артикал во инвентар</div>
+        <div class="grid">
+          <div><label>Назив</label><input id="invName" placeholder="напр. Скопско 0.33Л"></div>
+          <div><label>Единица</label><input id="invUnit" placeholder="боци / л / кг"></div>
+          <div><label>Почетна количина</label><input id="invQty" type="number" step="0.01" value="0"></div>
+          <div><label>Праг за мал залиха</label><input id="invLow" type="number" step="0.01" value="5"></div>
+          <div>
+            <label>Поврзи со ставка од менито (опционо)</label>
+            <select id="invLink"><option value="">— без поврзување —</option></select>
+          </div>
+          <div><label>Се троши по продадена ставка</label><input id="invUsage" type="number" step="0.01" value="1"></div>
+        </div>
+        <button class="btn-primary" id="addInvBtn">Додади артикал</button>
+        <div class="msg" id="invMsg"></div>
+      </div>
+      <div class="section-title">Тековен инвентар</div>
+      <div id="invList"><div class="empty">Се вчитува…</div></div>
+      <div class="section-title">Историја на набавки / продажби</div>
+      <table><thead><tr><th>Датум</th><th>Артикал</th><th>Промена</th><th>Забелешка</th></tr></thead><tbody id="procBody"><tr><td colspan="4">Се вчитува…</td></tr></tbody></table>
+    </section>
+  </main>
+</div>
+
+<script>
+/* Menu item list (id + name only) used to link inventory items to sales */
+const MENU_LITE = [
+  {id:'esp',name:'Еспресо'},{id:'macm',name:'Макијато мало'},{id:'macg',name:'Макијато големо'},
+  {id:'nes',name:'Нескафе'},{id:'cap',name:'Капучино'},{id:'kakao',name:'Какао'},{id:'turk',name:'Турско кафе'},
+  {id:'fredo',name:'Фредо еспресо'},{id:'caj',name:'Чај'},{id:'ladenm',name:'Ладен чај Београд · мало'},
+  {id:'ladeng',name:'Ладен чај Београд · голем'},{id:'kokakola',name:'Кока Кола'},{id:'kokazero',name:'Кока Кола Зеро'},
+  {id:'fanta',name:'Фанта'},{id:'sveps',name:'Швепс'},{id:'sprajt',name:'Спрајт'},{id:'nekst',name:'Некст'},
+  {id:'fuze',name:'Фузе Ладен Чај'},{id:'rosa',name:'Роса Вода'},{id:'cedenlimon',name:'Цеден лимон'},
+  {id:'cedenport',name:'Цеден портокал'},{id:'cedevita',name:'Цедевита'},{id:'redbul',name:'Ред Бул'},
+  {id:'skopsko',name:'Скопско'},{id:'skopskosmut',name:'Скопско Смут'},{id:'skopskosmut33t',name:'Скопско Смут · точено 0.33'},
+  {id:'skopskosmut50t',name:'Скопско Смут · точено 0.50'},{id:'hajneken25',name:'Хајнекен'},{id:'hajnekenzero',name:'Хајнекен Зеро'},
+  {id:'ginis',name:'Гинис Темно'},{id:'skopskoweiss',name:'Скопско Weiss'},{id:'moretti',name:'Бира Морети'},{id:'amstel',name:'Амстел'},
+  {id:'konjak',name:'Коњак'},{id:'jeger',name:'Јегер'},{id:'martini',name:'Мартини'},{id:'uzo',name:'Узо'},{id:'mastika',name:'Мастика'},
+  {id:'vinjak',name:'Вињак'},{id:'rakijazolta',name:'Ракија жолта'},{id:'pelinkovac',name:'Пелинковац'},{id:'tekila',name:'Текила'},
+  {id:'stok',name:'Шток'},{id:'kampari',name:'Кампари'},{id:'aperolspric',name:'Аперол шприц'},{id:'rumcaptain',name:'Рум Капетан Морган'},
+  {id:'rumbadel',name:'Рум Бадел'},{id:'bakardi',name:'Бакарди Рум'},{id:'smirnoff',name:'Смирноф Вотка'},{id:'absolut',name:'Абсолут Вотка'},
+  {id:'greygoose',name:'Греј Гус Вотка'},{id:'gordons',name:'Гордонс Џин'},{id:'gordonspink',name:'Гордонс Пинк Џин'},
+  {id:'bifiterdzin',name:'Бифитер Џин'},{id:'bifiterpink',name:'Бифитер Пинк'},{id:'hendricks',name:'Хендрикс Џин'},{id:'bombaj',name:'Бомбај Џин'},
+  {id:'dzejmison',name:'Џејмисон'},{id:'jb',name:'Џ&Б'},{id:'dzekdaniels',name:'Џек Даниелс'},{id:'jwred',name:'Џони Вокер Ред'},
+  {id:'jwblack',name:'Џони Вокер Блек'},{id:'monkeyshoulder',name:'Monkey Shoulder'},{id:'chivas',name:'Чивас'},
+  {id:'tgazajug',name:"Т'га за Југ"},{id:'aleksandrija',name:'Александрија'}
+];
+
+const loginScreen = document.getElementById('loginScreen');
+const appScreen = document.getElementById('appScreen');
+const loginBtn = document.getElementById('loginBtn');
+const loginErr = document.getElementById('loginErr');
+const emailInp = document.getElementById('email');
+const passInp = document.getElementById('pass');
+
+let myName = '';
+
+loginBtn.addEventListener('click', async ()=>{
+  loginErr.textContent = ''; loginBtn.disabled = true;
+  try{ await auth.signInWithEmailAndPassword(emailInp.value.trim(), passInp.value); }
+  catch(err){ loginErr.textContent = 'Погрешна е-пошта или лозинка.'; }
+  finally{ loginBtn.disabled = false; }
+});
+[emailInp, passInp].forEach(el=> el.addEventListener('keydown', e=>{ if(e.key==='Enter') loginBtn.click(); }));
+document.getElementById('logoutBtn').addEventListener('click', ()=> auth.signOut());
+
+auth.onAuthStateChanged(async user=>{
+  if(!user){ loginScreen.style.display='flex'; appScreen.style.display='none'; return; }
+  try{
+    const roleDoc = await db.collection('roles').doc(user.uid).get();
+    if(!roleDoc.exists || roleDoc.data().role !== 'admin'){
+      loginErr.textContent = 'Оваа сметка нема администраторски пристап.';
+      await auth.signOut(); return;
+    }
+    myName = user.email;
+    loginScreen.style.display='none'; appScreen.style.display='block';
+    initAll();
+  }catch(err){
+    console.error(err); loginErr.textContent = 'Грешка при најава.'; await auth.signOut();
+  }
+});
+
+/* ---------------- tabs ---------------- */
+document.querySelectorAll('nav.tabs button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(x=> x.classList.toggle('active', x===b));
+    document.querySelectorAll('.panel').forEach(p=> p.classList.toggle('active', p.id === 'panel-'+b.dataset.tab));
+  });
+});
+
+let initDone = false;
+function initAll(){
+  if(initDone) return; initDone = true;
+  populateInvLinkOptions();
+  listenOrders();
+  listenStaff();
+  listenInventory();
+  listenProcurements();
+}
+
+/* ---------------- ORDERS (also drives overview) ---------------- */
+let allOrders = [];
+let orderFilter = 'all';
+
+function listenOrders(){
+  db.collection('orders').orderBy('createdAt','desc').limit(500)
+    .onSnapshot(snap=>{
+      allOrders = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      renderOverview();
+      renderOrders();
+    }, err=>{
+      console.error('orders listener', err);
+      document.getElementById('ordersList').innerHTML = '<div class="empty">Грешка при вчитување (провери Firestore правила/индекси во конзолата).</div>';
+    });
+}
+
+document.getElementById('orderFilters').addEventListener('click', e=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  orderFilter = btn.dataset.f;
+  document.querySelectorAll('#orderFilters button').forEach(b=> b.classList.toggle('active', b===btn));
+  renderOrders();
+});
+
+function ts(t){ return t && t.toDate ? t.toDate() : new Date(); }
+function fmtDT(d){ return d.toLocaleString('mk-MK', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+
+function renderOrders(){
+  const list = document.getElementById('ordersList');
+  const filtered = orderFilter==='all' ? allOrders : allOrders.filter(o=> o.status===orderFilter);
+  if(filtered.length===0){ list.innerHTML = '<div class="empty">Нема нарачки во оваа категорија.</div>'; return; }
+  list.innerHTML = '';
+  filtered.forEach(o=>{
+    const row = document.createElement('div');
+    row.className = 'order-row';
+    const badgeClass = o.status==='completed' ? 'completed' : (o.status==='in_progress' ? 'progress' : 'new');
+    const badgeText = o.status==='completed' ? 'Завршена' : (o.status==='in_progress' ? 'Во тек' : 'Нова');
+    row.innerHTML = `
+      <div class="l"><b>#${o.orderNumber}</b> · ${o.type==='table' ? 'Маса '+(o.table||'—') : 'Понеси'} · ${o.items.reduce((s,i)=>s+i.qty,0)} ставки · ${o.total} ден
+        <div style="color:var(--gray); font-size:11.5px; margin-top:2px;">${fmtDT(ts(o.createdAt))}${o.waiterName ? ' · '+o.waiterName : ''}</div>
+      </div>
+      <span class="badge ${badgeClass}">${badgeText}</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function renderOverview(){
+  const now = new Date();
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const weekStart = new Date(now.getTime() - 7*24*60*60*1000);
+
+  const completed = allOrders.filter(o=> o.status==='completed' && o.completedAt);
+  const todayOrders = completed.filter(o=> ts(o.completedAt) >= todayStart);
+  const weekOrders = completed.filter(o=> ts(o.completedAt) >= weekStart);
+  const activeCount = allOrders.filter(o=> o.status==='new' || o.status==='in_progress').length;
+
+  document.getElementById('statToday').textContent = todayOrders.reduce((s,o)=> s+o.total,0) + ' ден';
+  document.getElementById('statWeek').textContent = weekOrders.reduce((s,o)=> s+o.total,0) + ' ден';
+  document.getElementById('statOrdersToday').textContent = todayOrders.length;
+  document.getElementById('statActive').textContent = activeCount;
+
+  const tally = new Map();
+  todayOrders.forEach(o=> o.items.forEach(i=>{
+    const cur = tally.get(i.name) || {qty:0, revenue:0};
+    cur.qty += i.qty; cur.revenue += i.price*i.qty;
+    tally.set(i.name, cur);
+  }));
+  const rows = [...tally.entries()].sort((a,b)=> b[1].qty - a[1].qty).slice(0,10);
+  const tbody = document.getElementById('topSellersBody');
+  tbody.innerHTML = rows.length ? rows.map(([name,v])=>`<tr><td>${name}</td><td>${v.qty}</td><td>${v.revenue} ден</td></tr>`).join('')
+    : '<tr><td colspan="3">Сè уште нема завршени нарачки денес.</td></tr>';
+}
+
+/* ---------------- STAFF ---------------- */
+function getSecondaryAuth(){
+  let secApp;
+  try{ secApp = firebase.app('Secondary'); }
+  catch(e){ secApp = firebase.initializeApp(firebaseConfig, 'Secondary'); }
+  return secApp.auth();
+}
+
+document.getElementById('addStaffBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('newStaffName').value.trim();
+  const email = document.getElementById('newStaffEmail').value.trim();
+  const pass = document.getElementById('newStaffPass').value;
+  const isAdmin = document.getElementById('newStaffAdmin').checked;
+  const msg = document.getElementById('staffMsg');
+  msg.className = 'msg'; msg.textContent = '';
+
+  if(!email || pass.length < 6 || (!isAdmin && !name)){
+    msg.className = 'msg bad'; msg.textContent = 'Пополни ги сите полиња (лозинка мин. 6 карактери).'; return;
+  }
+  try{
+    const secondaryAuth = getSecondaryAuth();
+    const cred = await secondaryAuth.createUserWithEmailAndPassword(email, pass);
+    const uid = cred.user.uid;
+    await secondaryAuth.signOut();
+    if(isAdmin){
+      await db.collection('roles').doc(uid).set({ role:'admin' });
+    } else {
+      await db.collection('roles').doc(uid).set({ role:'waiter' });
+      await db.collection('staff').doc(uid).set({
+        name, email, active:true, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    msg.className = 'msg ok'; msg.textContent = 'Сметката е креирана.';
+    document.getElementById('newStaffName').value='';
+    document.getElementById('newStaffEmail').value='';
+    document.getElementById('newStaffPass').value='';
+    document.getElementById('newStaffAdmin').checked=false;
+  }catch(err){
+    console.error(err);
+    msg.className = 'msg bad'; msg.textContent = 'Грешка: ' + (err.message || 'обиди се повторно.');
+  }
+});
+
+function listenStaff(){
+  db.collection('staff').onSnapshot(snap=>{
+    const list = document.getElementById('staffList');
+    if(snap.empty){ list.innerHTML = '<div class="empty">Сè уште нема додадено келнери.</div>'; return; }
+    list.innerHTML = '';
+    snap.forEach(doc=>{
+      const s = doc.data();
+      const row = document.createElement('div');
+      row.className = 'order-row';
+      row.innerHTML = `
+        <div class="l"><b style="font-family:var(--font-body)">${s.name}</b><div style="color:var(--gray); font-size:11.5px;">${s.email||''}</div></div>
+        <button class="btn-ghost" data-uid="${doc.id}" data-active="${s.active}">${s.active ? 'Деактивирај' : 'Активирај'}</button>
+      `;
+      row.querySelector('button').addEventListener('click', async e=>{
+        const active = e.target.dataset.active === 'true';
+        await db.collection('staff').doc(doc.id).update({ active: !active });
+      });
+      list.appendChild(row);
+    });
+  }, err=> console.error('staff listener', err));
+}
+
+/* ---------------- INVENTORY ---------------- */
+function populateInvLinkOptions(){
+  const sel = document.getElementById('invLink');
+  MENU_LITE.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m.id; opt.textContent = m.name;
+    sel.appendChild(opt);
+  });
+}
+
+document.getElementById('addInvBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('invName').value.trim();
+  const unit = document.getElementById('invUnit').value.trim();
+  const qty = parseFloat(document.getElementById('invQty').value) || 0;
+  const low = parseFloat(document.getElementById('invLow').value) || 0;
+  const link = document.getElementById('invLink').value || null;
+  const usage = parseFloat(document.getElementById('invUsage').value) || 1;
+  const msg = document.getElementById('invMsg');
+  msg.className='msg'; msg.textContent='';
+
+  if(!name){ msg.className='msg bad'; msg.textContent='Внеси назив на артиклот.'; return; }
+  try{
+    await db.collection('inventory').add({
+      name, unit, qty, lowStockThreshold: low, linkedMenuId: link, usagePerOrder: usage,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    msg.className='msg ok'; msg.textContent='Артиклот е додаден.';
+    ['invName','invUnit'].forEach(id=> document.getElementById(id).value='');
+    document.getElementById('invQty').value=0;
+    document.getElementById('invLow').value=5;
+    document.getElementById('invLink').value='';
+    document.getElementById('invUsage').value=1;
+  }catch(err){
+    console.error(err); msg.className='msg bad'; msg.textContent='Грешка при зачувување.';
+  }
+});
+
+function listenInventory(){
+  db.collection('inventory').onSnapshot(snap=>{
+    const list = document.getElementById('invList');
+    if(snap.empty){ list.innerHTML = '<div class="empty">Сè уште нема артикли во инвентарот.</div>'; return; }
+    list.innerHTML = '';
+    snap.forEach(doc=>{
+      const inv = doc.data();
+      const linked = MENU_LITE.find(m=> m.id===inv.linkedMenuId);
+      const low = inv.qty <= (inv.lowStockThreshold||0);
+      const row = document.createElement('div');
+      row.className = 'inv-row';
+      row.innerHTML = `
+        <div class="top">
+          <div>
+            <div class="name">${inv.name}</div>
+            <div class="meta">${linked ? 'Поврзано со: '+linked.name+' · ' : ''}${inv.usagePerOrder||1} по продажба${low ? ' · <span class="low">МАЛА ЗАЛИХА</span>' : ''}</div>
+          </div>
+          <div class="qty ${low?'low':''}">${inv.qty} ${inv.unit||''}</div>
+        </div>
+        <div class="add-stock">
+          <input type="number" step="0.01" placeholder="Кол." id="stock-${doc.id}">
+          <input type="text" placeholder="Забелешка (опц.)" id="note-${doc.id}" style="flex:1">
+          <button data-id="${doc.id}">+ Набавка</button>
+        </div>
+      `;
+      row.querySelector('button').addEventListener('click', ()=> addProcurement(doc.id, inv.name));
+      list.appendChild(row);
+    });
+  }, err=> console.error('inventory listener', err));
+}
+
+async function addProcurement(invId, invName){
+  const qtyInput = document.getElementById('stock-'+invId);
+  const noteInput = document.getElementById('note-'+invId);
+  const qty = parseFloat(qtyInput.value);
+  if(!qty || qty <= 0){ alert('Внеси валидна количина.'); return; }
+  const note = noteInput.value.trim();
+  try{
+    const ref = db.collection('inventory').doc(invId);
+    await db.runTransaction(async tx=>{
+      const fresh = await tx.get(ref);
+      const newQty = (fresh.data().qty || 0) + qty;
+      tx.update(ref, { qty: newQty });
+    });
+    await db.collection('procurements').add({
+      inventoryId: invId, inventoryName: invName, delta: qty, type:'purchase',
+      note: note || 'Набавка', createdBy: myName,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    qtyInput.value=''; noteInput.value='';
+  }catch(err){ console.error(err); alert('Грешка при внесување набавка.'); }
+}
+
+function listenProcurements(){
+  db.collection('procurements').orderBy('createdAt','desc').limit(50).onSnapshot(snap=>{
+    const tbody = document.getElementById('procBody');
+    if(snap.empty){ tbody.innerHTML = '<tr><td colspan="4">Нема записи.</td></tr>'; return; }
+    tbody.innerHTML = snap.docs.map(d=>{
+      const p = d.data();
+      const date = p.createdAt ? fmtDT(ts(p.createdAt)) : '—';
+      const sign = p.delta > 0 ? '+' : '';
+      return `<tr><td>${date}</td><td>${p.inventoryName||'—'}</td><td>${sign}${p.delta}</td><td>${p.note||''}</td></tr>`;
+    }).join('');
+  }, err=> console.error('procurements listener', err));
+}
+</script>
+</body>
+</html>

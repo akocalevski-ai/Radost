@@ -1,0 +1,811 @@
+﻿<!DOCTYPE html>
+<html lang="mk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F2EDE1">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>radost — нарачај</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<style>
+  /* ============================================================
+     RADOST — self-service ordering
+     ------------------------------------------------------------
+     Logo + full menu rebuilt from the user's real screenshots of
+     radost.space (КАФЕ, СОКОВИ→БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ, ПИВО,
+     ЖЕСТОКО→АЛКОХОЛНИ ПИЈАЛОЦИ, ВИНО) — real names, sizes & prices.
+     Visual pass v2: cozier cards, tab icons, softer depth.
+     Search "MENU DATA" below to edit.
+     ============================================================ */
+
+  :root{
+    --ink:        #211D18;
+    --ink-soft:   #4A423A;
+    --bg:         #F2EDE1;
+    --card:       #FBF9F4;
+    --gray:       #948C7D;
+    --line:       rgba(33,29,24,0.09);
+    --gold:       #EFAE26;
+    --gold-dark:  #C88A17;
+    --gold-wash:  #FBEBC8;
+    --pill-bg:    #E9E2D0;
+    --pill-text:  #423C31;
+    --shadow-sm:  0 2px 8px rgba(76,58,20,0.06);
+    --shadow-md:  0 14px 34px rgba(43,32,10,0.14);
+    --radius-lg:  18px;
+    --radius-md:  12px;
+    --font-display: 'Nunito', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html{ overflow-x:hidden; }
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, rgba(239,174,38,0.10), transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    overflow-x:hidden;
+    overscroll-behavior-y: none;
+  }
+  body.locked{ overflow:hidden; height:100%; }
+  button{ font-family: inherit; cursor:pointer; touch-action: manipulation; }
+  :focus-visible{ outline: 2px solid var(--gold-dark); outline-offset: 2px; }
+  svg{ display:block; }
+
+  /* ---------- header ---------- */
+  header.top{
+    position:sticky; top:0; z-index:20;
+    background: var(--bg);
+    padding: calc(20px + env(safe-area-inset-top)) 20px 8px;
+    text-align:center;
+    transition: box-shadow .25s ease, background .25s ease;
+  }
+  header.top.scrolled{
+    background: rgba(242,237,225,0.92);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 6px 18px rgba(43,32,10,0.08);
+  }
+  .logo{
+    font-family: var(--font-display); font-weight:900; font-size: clamp(30px,7vw,40px);
+    letter-spacing:-0.01em; color: var(--ink);
+    display:inline-flex; align-items:flex-start; gap:1px; position:relative;
+  }
+  .logo .hl{
+    background: var(--gold);
+    padding: 0 6px; border-radius: 8px;
+    margin: 0 1px;
+    box-shadow: var(--shadow-sm);
+  }
+  .logo sup{
+    font-family: var(--font-body); font-weight:600; font-size:11px; color:var(--gray);
+    margin-left:3px; margin-top:2px;
+  }
+  .tagline{
+    font-family: var(--font-body); font-weight:600; font-size:11px;
+    letter-spacing:0.18em; text-transform:uppercase; color: var(--gray);
+    margin-top:6px;
+  }
+
+  .order-meta{
+    max-width:640px; margin: 18px auto 4px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
+  }
+  .seg{
+    display:flex; background: var(--card);
+    border:1px solid var(--line);
+    border-radius: 999px; overflow:hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .seg button{
+    background:transparent; border:none; color: var(--pill-text);
+    padding:9px 18px; font-size:13px; font-weight:700;
+    transition: background .15s ease, color .15s ease;
+  }
+  .seg button.active{ background: var(--gold); color: var(--ink); }
+  .table-input{
+    display:flex; align-items:center; gap:8px;
+    background: var(--card);
+    border:1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .table-input label{ font-size:12px; color:var(--gray); font-weight:600; }
+  .table-input input{
+    width:44px; background:transparent; border:none; color:var(--ink);
+    font-family: var(--font-body); font-weight:700; font-size:16px; border-bottom:1px solid var(--gold-dark);
+  }
+  .table-input input:focus{ outline:none; }
+  .table-input select{
+    background:transparent; border:none; color:var(--ink);
+    font-family: var(--font-body); font-weight:700; font-size:13px;
+    max-width:130px;
+  }
+  .table-input select:focus{ outline:none; }
+
+  /* ---------- staff link ---------- */
+  .staff-link{
+    position:fixed; left:10px; bottom:calc(10px + env(safe-area-inset-bottom));
+    z-index:15; font-size:10.5px; color:var(--gray); text-decoration:none;
+    background:var(--card); border:1px solid var(--line); border-radius:999px;
+    padding:5px 10px; opacity:0.55; transition:opacity .15s ease;
+  }
+  .staff-link:hover{ opacity:1; }
+
+  /* ---------- print receipt (hidden on screen, only shown when printing) ---------- */
+  .print-receipt{ display:none; }
+  .receipt-btn{
+    margin-top:26px; background:transparent; color:var(--gold-wash); border:1px solid rgba(255,255,255,0.35);
+    padding:11px 22px; border-radius:999px; font-weight:700; font-size:13px;
+  }
+  @media print{
+    body *{ visibility:hidden; }
+    .print-receipt, .print-receipt *{ visibility:visible; }
+    .print-receipt{
+      display:block; position:absolute; top:0; left:0; width:100%;
+      padding:14px; font-family: var(--font-mono); color:#000; font-size:12px;
+    }
+    .print-receipt h3{ text-align:center; font-size:15px; margin:0 0 4px; }
+    .print-receipt .r-line{ display:flex; justify-content:space-between; margin:2px 0; }
+    .print-receipt hr{ border:none; border-top:1px dashed #000; margin:8px 0; }
+  }
+
+  /* ---------- category tabs ---------- */
+  nav.cats{
+    position:sticky; top: var(--header-h, 126px); z-index:19;
+    background: var(--bg);
+    overflow-x:auto; white-space:nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 16px 12px;
+    scrollbar-width:none;
+    text-align:center;
+  }
+  nav.cats::-webkit-scrollbar{ display:none; }
+  .cats .inner{ max-width:660px; margin:0 auto; display:inline-flex; gap:8px; }
+  .cat-btn{
+    background: var(--pill-bg);
+    border:none;
+    padding:10px 18px 10px 14px;
+    border-radius: 999px;
+    font-size:13px; font-weight:800; letter-spacing:0.01em; color: var(--pill-text);
+    display:inline-flex; align-items:center; gap:7px;
+    transition: background .15s ease, color .15s ease, transform .1s ease;
+  }
+  .cat-btn:active{ transform: scale(0.96); }
+  .cat-btn.active{
+    background: var(--ink); color: var(--gold-wash);
+    box-shadow: var(--shadow-sm);
+  }
+  .cat-btn svg{ width:15px; height:15px; opacity:0.85; flex-shrink:0; }
+
+  /* ---------- menu ---------- */
+  main{ max-width:640px; margin: 0 auto; padding: 6px 16px 140px; }
+  .cat-heading{
+    display:flex; align-items:center; gap:14px;
+    font-family: var(--font-display); font-weight:900; text-transform:uppercase;
+    font-size:16px; letter-spacing:0.03em; margin: 28px 4px 12px; color: var(--ink);
+  }
+  .cat-heading::after{ content:""; flex:1; height:1px; background: var(--line); }
+  .cat-heading:first-of-type{ margin-top:10px; }
+
+  .card{
+    background: var(--card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--line);
+    overflow:hidden;
+    animation: fadeIn .28s ease;
+  }
+  @keyframes fadeIn{ from{ opacity:0; transform: translateY(4px);} to{ opacity:1; transform:translateY(0);} }
+
+  .row{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding: 14px 16px; border-bottom:1px solid var(--line);
+  }
+  .row:last-child{ border-bottom:none; }
+  .row .left{ min-width:0; flex:1; }
+  .row .name-line{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .row .name{ font-size:15px; font-weight:600; color:var(--ink); }
+  .row .vol{
+    font-size:10.5px; font-weight:700; color: var(--gray);
+    background: var(--pill-bg); border-radius:999px; padding:2px 8px;
+  }
+  .row .mark{ color: var(--gold-dark); font-size:11px; }
+  .row .desc{ font-size:12px; color: var(--gray); margin-top:3px; line-height:1.4; }
+  .row .right{ display:flex; align-items:center; gap:12px; flex-shrink:0; }
+  .row .price{ font-weight:800; font-size:15px; color:var(--ink); white-space:nowrap; }
+  .row .price small{ font-weight:600; font-size:11px; color:var(--gray); margin-left:2px; }
+
+  .add-btn{
+    background: var(--gold); color:var(--ink); border:none;
+    width:34px; height:34px; border-radius:50%;
+    font-size:17px; line-height:1; font-weight:800;
+    display:flex; align-items:center; justify-content:center;
+    transition: transform .12s ease, background .15s ease;
+  }
+  .add-btn:hover{ background: var(--gold-dark); }
+  .add-btn:active{ transform: scale(0.88); }
+  .stepper{
+    display:flex; align-items:center; gap:6px;
+    background: var(--ink); border-radius:999px; padding:4px 4px;
+  }
+  .stepper button{
+    background:transparent; border:none; color:var(--gold-wash); font-size:16px; width:26px; height:26px;
+  }
+  .stepper span{ color:#fff; font-family:var(--font-body); font-weight:700; min-width:12px; text-align:center; font-size:13px; }
+
+  .placeholder-note{
+    display:flex; align-items:center; gap:8px;
+    font-size:12px; color: var(--ink-soft); background: var(--gold-wash);
+    border-radius: var(--radius-md); padding:10px 14px; margin-bottom:14px;
+  }
+
+  /* ---------- floating cart button ---------- */
+  .cart-fab{
+    position:fixed; right:16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index:30;
+    background: var(--ink); color: var(--gold-wash);
+    border:none; border-radius: 999px;
+    padding: 15px 22px;
+    display:flex; align-items:center; gap:10px;
+    box-shadow: var(--shadow-md);
+    font-weight:800; font-size:14px;
+    transform: translateY(120%); transition: transform .25s ease;
+    min-height:48px;
+  }
+  .cart-fab.show{ transform: translateY(0); }
+  .cart-fab .count{
+    background: var(--gold); color: var(--ink);
+    border-radius:50%; width:22px; height:22px; font-size:12px;
+    display:flex; align-items:center; justify-content:center; font-weight:800;
+  }
+
+  /* ---------- cart drawer ---------- */
+  .overlay{
+    position:fixed; inset:0; background: rgba(33,29,24,0.45);
+    opacity:0; pointer-events:none; transition: opacity .2s ease; z-index:40;
+  }
+  .overlay.show{ opacity:1; pointer-events:auto; }
+  .drawer{
+    position:fixed; right:0; top:0; bottom:0; width:min(420px, 100%);
+    background: var(--bg); z-index:41;
+    transform: translateX(100%); transition: transform .28s cubic-bezier(.4,0,.2,1);
+    display:flex; flex-direction:column;
+    box-shadow: -14px 0 40px rgba(0,0,0,0.22);
+  }
+  .drawer.show{ transform: translateX(0); }
+  .drawer-head{
+    background: var(--ink); color:var(--gold-wash); padding:20px 20px 16px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .drawer-head h2{ font-family:var(--font-display); font-weight:900; font-size:20px; margin:0; }
+  .drawer-head button{ background:rgba(255,255,255,0.1); border:none; color:var(--gold-wash); font-size:18px; width:32px; height:32px; border-radius:50%; }
+  .drawer-body{ flex:1; overflow-y:auto; -webkit-overflow-scrolling: touch; padding: 14px 20px; }
+  .empty-note{ text-align:center; margin-top:60px; color:var(--gray); font-size:14px; line-height:1.6; }
+  .cart-line{
+    display:flex; justify-content:space-between; align-items:center;
+    padding: 13px 0; border-bottom:1px solid var(--line); gap:10px;
+  }
+  .cart-line .info{ flex:1; }
+  .cart-line .info .n{ font-weight:700; font-size:14px; }
+  .cart-line .info .p{ font-size:12px; color:var(--gray); margin-top:2px; }
+  .cart-line .stepper{ background: var(--ink); }
+  textarea.note{
+    width:100%; margin-top:16px; border:1px solid var(--line); border-radius:var(--radius-md);
+    background: var(--card); padding:12px; font-family: var(--font-body); font-size:16px; resize:vertical; min-height:60px;
+    -webkit-appearance:none;
+  }
+  .drawer-foot{ padding: 16px 20px calc(20px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background: var(--card); }
+  .total-row{ display:flex; justify-content:space-between; font-size:15px; margin-bottom:12px; }
+  .total-row .amt{ font-weight:800; color:var(--ink); font-size:19px; }
+  .place-btn{
+    width:100%; background:var(--gold); color:var(--ink); border:none;
+    padding:15px; border-radius:999px; font-weight:800; font-size:15px;
+    letter-spacing:0.02em; transition: background .15s ease, transform .1s ease;
+  }
+  .place-btn:hover:not(:disabled){ background: var(--gold-dark); }
+  .place-btn:active:not(:disabled){ transform: scale(0.98); }
+  .place-btn:disabled{ background:#DCD5C2; color:#a39c88; cursor:not-allowed; }
+
+  /* ---------- confirmation ---------- */
+  .confirm{
+    position:fixed; inset:0; background:var(--ink); color:var(--gold-wash);
+    z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column;
+    padding: 30px; text-align:center;
+  }
+  .confirm.show{ display:flex; }
+  .stamp{
+    width:120px; height:120px; border-radius:50%;
+    border:3px solid var(--gold); color: var(--gold);
+    display:flex; align-items:center; justify-content:center; flex-direction:column;
+    transform: rotate(-8deg);
+    font-family: var(--font-mono); margin-bottom:24px;
+    animation: pop .35s ease;
+  }
+  @keyframes pop{ from{ transform: scale(0.6) rotate(-8deg); opacity:0;} to{ transform:scale(1) rotate(-8deg); opacity:1;} }
+  .stamp small{ font-size:10px; letter-spacing:0.1em; }
+  .stamp b{ font-size:26px; }
+  .confirm h2{ font-family:var(--font-display); font-weight:900; font-size:26px; margin:0 0 8px; color:#fff; }
+  .confirm p{ opacity:0.75; max-width:320px; font-size:14px; line-height:1.5; }
+  .confirm .new-order{
+    margin-top:26px; background:var(--gold); color:var(--ink); border:none;
+    padding:13px 24px; border-radius:999px; font-weight:800;
+  }
+
+  .confirm{ padding-bottom: calc(30px + env(safe-area-inset-bottom)); }
+
+  @media (max-width: 380px){
+    header.top{ padding-left:14px; padding-right:14px; }
+    .order-meta{ gap:8px; }
+    .seg button{ padding:8px 13px; font-size:12.5px; }
+    main{ padding-left:12px; padding-right:12px; }
+    .row{ padding:12px 13px; }
+    .cat-btn{ padding:9px 14px 9px 11px; font-size:12.5px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top" id="topHeader">
+  <div class="logo">ra<span class="hl">do</span>st<sup>TM</sup></div>
+  <div class="tagline">.. во секоја голтка !</div>
+  <div class="order-meta">
+    <div class="seg" id="orderTypeSeg">
+      <button class="active" data-type="table">Маса</button>
+      <button data-type="takeaway">За понесување</button>
+    </div>
+    <div class="table-input" id="tableWrap">
+      <label for="tableNum">Бр.</label>
+      <input id="tableNum" type="text" inputmode="numeric" maxlength="3" placeholder="—">
+    </div>
+    <div class="table-input" id="waiterWrap">
+      <label for="waiterSel">Келнер</label>
+      <select id="waiterSel"><option value="">— било кој —</option></select>
+    </div>
+  </div>
+</header>
+
+<nav class="cats" id="catNav">
+  <div class="inner" id="catInner"></div>
+</nav>
+
+<main id="menuRoot"></main>
+
+<button class="cart-fab" id="cartFab">
+  <span class="count" id="cartCount">0</span>
+  <span id="cartFabLabel">Нарачка</span>
+</button>
+
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-label="Твојата нарачка">
+  <div class="drawer-head">
+    <h2>Твојата нарачка</h2>
+    <button id="closeDrawer" aria-label="Затвори">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot">
+    <div class="total-row"><span>Вкупно</span><span class="amt" id="totalAmt">0 ден</span></div>
+    <button class="place-btn" id="placeBtn">Нарачај</button>
+  </div>
+</aside>
+
+<div class="confirm" id="confirm">
+  <div class="stamp"><small>НАРАЧКА</small><b id="orderNo">#000</b></div>
+  <h2>Ви благодариме!</h2>
+  <p id="confirmDetail">Нарачката е испратена до шанкот.</p>
+  <button class="receipt-btn" id="printReceiptBtn">Испечати сметка</button>
+  <button class="new-order" id="newOrderBtn">Нова нарачка</button>
+</div>
+
+<div class="print-receipt" id="printReceipt"></div>
+
+<a class="staff-link" href="waiter.html">Персонал</a>
+
+<script>
+/* ============================================================
+   TAB ICONS — small line icons, one per category pill
+   ============================================================ */
+const ICONS = {
+  'КАФЕ': '<path d="M3 8h13v4a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5V8Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M16 9h1.5a2.5 2.5 0 0 1 0 5H16" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 3.5c0 1-1 1-1 2s1 1 1 2M10 3.5c0 1-1 1-1 2s1 1 1 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>',
+  'СОКОВИ': '<path d="M6 3h8l-1 15a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2L6 3Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 7h9" stroke="currentColor" stroke-width="1.4"/>',
+  'ПИВО': '<path d="M4 6h9v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M13 8h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 6c0-1.5 1-2 1-3M9 6c0-1.5 1-2 1-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>',
+  'ЖЕСТОКО': '<path d="M6 4h8l-1.3 8.5a2 2 0 0 1-2 1.7H9.3a2 2 0 0 1-2-1.7L6 4Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 14.2V18M6.5 18h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  'ВИНО': '<path d="M6 3h8c0 4-2 6.5-4 7v6M8 18h6" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
+};
+
+/* ============================================================
+   MENU DATA — real names/sizes/prices from radost.space screenshots.
+   vol   -> size badge, e.g. "0.25 L" (omit for items with no size)
+   desc  -> the small variant/flavor line under some items
+   mark  -> shows the small gold accent used on most (not all) items
+   ============================================================ */
+const TABS = ['КАФЕ','СОКОВИ','ПИВО','ЖЕСТОКО','ВИНО'];
+
+const MENU = [
+  // ---- КАФЕ ----
+  { id:'esp',    tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Еспресо', price:70 },
+  { id:'macm',   tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Макијато мало', price:80, mark:true },
+  { id:'macg',   tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Макијато големо', price:90, mark:true },
+  { id:'nes',    tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Нескафе', price:100, mark:true },
+  { id:'cap',    tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Капучино', price:100, mark:true },
+  { id:'kakao',  tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Какао', price:100, mark:true },
+  { id:'turk',   tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Турско кафе', price:60 },
+  { id:'fredo',  tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Фредо еспресо', price:100, mark:true },
+  { id:'caj',    tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Чај', price:60 },
+  { id:'ladenm', tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Ладен чај Београд · мало', price:80, mark:true },
+  { id:'ladeng', tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Ладен чај Београд · голем', price:100, mark:true },
+
+  // ---- СОКОВИ → БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ ----
+  { id:'kokakola',  tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Кока Кола', vol:'0.25 L', price:100, mark:true },
+  { id:'kokazero',  tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Кока Кола Зеро', vol:'0.25 L', price:100, mark:true },
+  { id:'fanta',     tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Фанта', vol:'0.25 L', price:100, mark:true },
+  { id:'sveps',     tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Швепс', vol:'0.25 L', price:100, mark:true, desc:'лимон · зеро · тоник · зеро тоник · пинк грејп · танџерина' },
+  { id:'sprajt',    tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Спрајт', vol:'0.25 L', price:100, mark:true },
+  { id:'nekst',     tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Некст', vol:'0.25 L', price:100, mark:true, desc:'портокал · праска · јаболко · коктел' },
+  { id:'fuze',      tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Фузе Ладен Чај', vol:'0.25 L', price:100, mark:true },
+  { id:'rosa',      tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Роса Вода', vol:'0.33 L', price:70, mark:true, desc:'обична · газирана' },
+  { id:'cedenlimon',tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Цеден лимон', price:120, mark:true },
+  { id:'cedenport', tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Цеден портокал', price:140, mark:true },
+  { id:'cedevita',  tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Цедевита', price:80, mark:true },
+  { id:'redbul',    tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Ред Бул', price:200, mark:true },
+
+  // ---- ПИВО ----
+  { id:'skopsko',      tab:'ПИВО', section:'ПИВО', name:'Скопско', vol:'0.33 L', price:120, mark:true },
+  { id:'skopskosmut',  tab:'ПИВО', section:'ПИВО', name:'Скопско Смут', vol:'0.33 L', price:120, mark:true },
+  { id:'skopskosmut33t',tab:'ПИВО', section:'ПИВО', name:'Скопско Смут · точено', vol:'0.33 L', price:120, mark:true },
+  { id:'skopskosmut50t',tab:'ПИВО', section:'ПИВО', name:'Скопско Смут · точено', vol:'0.50 L', price:140, mark:true },
+  { id:'hajneken25',   tab:'ПИВО', section:'ПИВО', name:'Хајнекен', vol:'0.25 L', price:120, mark:true },
+  { id:'hajnekenzero', tab:'ПИВО', section:'ПИВО', name:'Хајнекен Зеро 0%', vol:'0.33 L', price:150, mark:true },
+  { id:'ginis',        tab:'ПИВО', section:'ПИВО', name:'Гинис Темно', vol:'0.33 L', price:200, mark:true },
+  { id:'skopskoweiss', tab:'ПИВО', section:'ПИВО', name:'Скопско Weiss', vol:'0.50 L', price:120, mark:true },
+  { id:'moretti',      tab:'ПИВО', section:'ПИВО', name:'Бира Морети', vol:'0.40 L', price:130, mark:true },
+  { id:'amstel',       tab:'ПИВО', section:'ПИВО', name:'Амстел', vol:'0.33 L', price:140, mark:true },
+
+  // ---- ЖЕСТОКО → АЛКОХОЛНИ ПИЈАЛОЦИ ----
+  { id:'konjak',    tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Коњак', vol:'0.04 L', price:100 },
+  { id:'jeger',     tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Јегер', vol:'0.04 L', price:130 },
+  { id:'martini',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Мартини', price:100 },
+  { id:'uzo',       tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Узо', vol:'0.04 L', price:80 },
+  { id:'mastika',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Мастика', vol:'0.04 L', price:80 },
+  { id:'vinjak',    tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Вињак', vol:'0.04 L', price:100 },
+  { id:'rakijazolta',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Ракија жолта', vol:'0.04 L', price:80 },
+  { id:'pelinkovac',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Пелинковац', vol:'0.04 L', price:100 },
+  { id:'tekila',    tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Текила', vol:'0.04 L', price:100 },
+  { id:'stok',      tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Шток', vol:'0.04 L', price:100 },
+  { id:'kampari',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Кампари', vol:'0.04 L', price:150 },
+  { id:'aperolspric',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Аперол шприц', price:200 },
+  { id:'rumcaptain',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Рум Капетан Морган', vol:'0.04 L', price:120 },
+  { id:'rumbadel',  tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Рум Бадел', vol:'0.04 L', price:100 },
+  { id:'bakardi',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Бакарди Рум', vol:'0.04 L', price:120 },
+  { id:'smirnoff',  tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Смирноф Вотка', vol:'0.04 L', price:120 },
+  { id:'absolut',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Абсолут Вотка', vol:'0.04 L', price:120 },
+  { id:'greygoose', tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Греј Гус Вотка', vol:'0.04 L', price:250 },
+  { id:'gordons',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Гордонс Џин', vol:'0.04 L', price:120 },
+  { id:'gordonspink',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Гордонс Пинк Џин', vol:'0.04 L', price:120 },
+  { id:'bifiterdzin',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Бифитер Џин', vol:'0.04 L', price:120 },
+  { id:'bifiterpink',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Бифитер Пинк', vol:'0.04 L', price:130 },
+  { id:'hendricks', tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Хендрикс Џин', vol:'0.04 L', price:250 },
+  { id:'bombaj',    tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Бомбај Џин', vol:'0.04 L', price:160 },
+  { id:'dzejmison', tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Џејмисон', vol:'0.04 L', price:150 },
+  { id:'jb',        tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Џ&Б', vol:'0.04 L', price:200 },
+  { id:'dzekdaniels',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Џек Даниелс', vol:'0.04 L', price:200 },
+  { id:'jwred',     tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Џони Вокер Ред', vol:'0.04 L', price:150 },
+  { id:'jwblack',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Џони Вокер Блек', vol:'0.04 L', price:200 },
+  { id:'monkeyshoulder',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Monkey Shoulder', vol:'0.04 L', price:220 },
+  { id:'chivas',    tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Чивас', vol:'0.04 L', price:250 },
+
+  // ---- ВИНО ----
+  { id:'tgazajug',  tab:'ВИНО', section:'ВИНО', name:"Т'га за Југ", price:180 },
+  { id:'aleksandrija',tab:'ВИНО', section:'ВИНО', name:'Александрија', price:180 },
+];
+
+/* ---------------- state ---------------- */
+let cart = JSON.parse(localStorage.getItem('radost_cart') || '{}');
+let orderType = localStorage.getItem('radost_order_type') || 'table';
+let tableNumber = localStorage.getItem('radost_table') || '';
+let activeTab = TABS[0];
+let waiters = [];
+let selectedWaiterId = localStorage.getItem('radost_waiter_id') || '';
+let lastOrder = null;
+
+/* ---------------- waiter list (live from Firestore) ---------------- */
+const waiterSel = document.getElementById('waiterSel');
+db.collection('staff').where('active','==',true).onSnapshot(snap=>{
+  waiters = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+  const prev = selectedWaiterId;
+  waiterSel.innerHTML = '<option value="">— било кој —</option>' +
+    waiters.map(w=>`<option value="${w.id}">${w.name}</option>`).join('');
+  waiterSel.value = waiters.some(w=>w.id===prev) ? prev : '';
+}, err=> console.error('staff listener', err));
+waiterSel.addEventListener('change', ()=>{
+  selectedWaiterId = waiterSel.value;
+  localStorage.setItem('radost_waiter_id', selectedWaiterId);
+});
+
+async function getNextOrderNumber(){
+  const counterRef = db.collection('meta').doc('orderCounter');
+  return db.runTransaction(async tx=>{
+    const doc = await tx.get(counterRef);
+    const next = (doc.exists ? (doc.data().value || 100) : 100) + 1;
+    tx.set(counterRef, { value: next }, { merge:true });
+    return next;
+  });
+}
+
+function saveCart(){ localStorage.setItem('radost_cart', JSON.stringify(cart)); }
+
+/* ---------------- header scroll shadow + dynamic sticky offset ---------------- */
+const topHeader = document.getElementById('topHeader');
+window.addEventListener('scroll', ()=>{
+  topHeader.classList.toggle('scrolled', window.scrollY > 8);
+}, { passive:true });
+
+function syncHeaderHeight(){
+  document.documentElement.style.setProperty('--header-h', topHeader.offsetHeight + 'px');
+}
+syncHeaderHeight();
+window.addEventListener('resize', syncHeaderHeight);
+window.addEventListener('orientationchange', syncHeaderHeight);
+if(window.ResizeObserver){ new ResizeObserver(syncHeaderHeight).observe(topHeader); }
+
+/* ---------------- render tabs ---------------- */
+const catInner = document.getElementById('catInner');
+const menuRoot = document.getElementById('menuRoot');
+
+function renderTabs(){
+  catInner.innerHTML = '';
+  TABS.forEach(tab=>{
+    const b = document.createElement('button');
+    b.className = 'cat-btn' + (tab===activeTab ? ' active' : '');
+    b.innerHTML = `<svg viewBox="0 0 20 20">${ICONS[tab] || ''}</svg><span>${tab}</span>`;
+    b.addEventListener('click', ()=>{ activeTab = tab; renderTabs(); renderMenu(); });
+    catInner.appendChild(b);
+  });
+}
+
+/* ---------------- render menu ---------------- */
+function renderMenu(){
+  menuRoot.innerHTML = '';
+
+  const sections = [...new Set(MENU.filter(i=>i.tab===activeTab).map(i=>i.section))];
+  sections.forEach(section=>{
+    const heading = document.createElement('h3');
+    heading.className = 'cat-heading';
+    heading.textContent = section;
+    menuRoot.appendChild(heading);
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    MENU.filter(i=>i.tab===activeTab && i.section===section).forEach(item=>{
+      card.appendChild(renderItem(item));
+    });
+    menuRoot.appendChild(card);
+  });
+}
+
+function renderItem(item){
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `
+    <div class="left">
+      <div class="name-line">
+        <span class="name">${item.name}</span>
+        ${item.vol ? `<span class="vol">${item.vol}</span>` : ''}
+        ${item.mark ? '<span class="mark">✦</span>' : ''}
+      </div>
+      ${item.desc ? `<div class="desc">${item.desc}</div>` : ''}
+    </div>
+    <div class="right">
+      <span class="price">${item.price}<small> ден</small></span>
+      <div class="qty-slot" data-id="${item.id}"></div>
+    </div>`;
+  renderQtyControl(row.querySelector('.qty-slot'), item.id);
+  return row;
+}
+
+function renderQtyControl(slot, id){
+  const qty = cart[id] || 0;
+  slot.innerHTML = '';
+  if(qty === 0){
+    const btn = document.createElement('button');
+    btn.className = 'add-btn';
+    btn.setAttribute('aria-label','Додади во нарачка');
+    btn.textContent = '+';
+    btn.addEventListener('click', ()=> changeQty(id, 1));
+    slot.appendChild(btn);
+  } else {
+    const wrap = document.createElement('div');
+    wrap.className = 'stepper';
+    wrap.innerHTML = `<button aria-label="Одземи">−</button><span>${qty}</span><button aria-label="Додади">+</button>`;
+    wrap.children[0].addEventListener('click', ()=> changeQty(id,-1));
+    wrap.children[2].addEventListener('click', ()=> changeQty(id, 1));
+    slot.appendChild(wrap);
+  }
+}
+
+function changeQty(id, delta){
+  cart[id] = (cart[id] || 0) + delta;
+  if(cart[id] <= 0) delete cart[id];
+  saveCart();
+  document.querySelectorAll(`.qty-slot[data-id="${id}"]`).forEach(slot=> renderQtyControl(slot, id));
+  updateCartUI();
+}
+
+/* ---------------- order type ---------------- */
+const seg = document.getElementById('orderTypeSeg');
+const tableWrap = document.getElementById('tableWrap');
+const tableInput = document.getElementById('tableNum');
+tableInput.value = tableNumber;
+
+function setOrderType(type){
+  orderType = type;
+  localStorage.setItem('radost_order_type', type);
+  [...seg.children].forEach(b=> b.classList.toggle('active', b.dataset.type===type));
+  tableWrap.style.display = type === 'table' ? 'flex' : 'none';
+  updateCartUI();
+}
+seg.addEventListener('click', e=>{
+  const btn = e.target.closest('button');
+  if(btn) setOrderType(btn.dataset.type);
+});
+tableInput.addEventListener('input', ()=>{
+  tableNumber = tableInput.value;
+  localStorage.setItem('radost_table', tableNumber);
+  updateCartUI();
+});
+
+/* ---------------- cart drawer ---------------- */
+const cartFab = document.getElementById('cartFab');
+const cartCount = document.getElementById('cartCount');
+const overlay = document.getElementById('overlay');
+const drawer = document.getElementById('drawer');
+const drawerBody = document.getElementById('drawerBody');
+const totalAmt = document.getElementById('totalAmt');
+const placeBtn = document.getElementById('placeBtn');
+
+function itemsInCart(){
+  return Object.entries(cart).map(([id,qty])=>({...MENU.find(m=>m.id===id), qty}));
+}
+function cartTotal(){
+  return itemsInCart().reduce((s,i)=> s + i.price*i.qty, 0);
+}
+function updateCartUI(){
+  const items = itemsInCart();
+  const count = items.reduce((s,i)=> s+i.qty, 0);
+  cartCount.textContent = count;
+  cartFab.classList.toggle('show', count > 0);
+  totalAmt.textContent = cartTotal() + ' ден';
+  placeBtn.disabled = count === 0 || (orderType==='table' && !tableNumber);
+
+  drawerBody.innerHTML = '';
+  if(items.length===0){
+    drawerBody.innerHTML = '<div class="empty-note">Нарачката е празна.<br>Допри „+“ на нешто што ти се допаѓа.</div>';
+    return;
+  }
+  items.forEach(item=>{
+    const line = document.createElement('div');
+    line.className = 'cart-line';
+    line.innerHTML = `
+      <div class="info">
+        <div class="n">${item.name}${item.vol ? ' · ' + item.vol : ''}</div>
+        <div class="p">${item.price} ден × ${item.qty} = ${item.price*item.qty} ден</div>
+      </div>
+      <div class="stepper">
+        <button aria-label="Одземи">−</button><span>${item.qty}</span><button aria-label="Додади">+</button>
+      </div>`;
+    line.querySelector('.stepper').children[0].addEventListener('click', ()=> changeQty(item.id,-1));
+    line.querySelector('.stepper').children[2].addEventListener('click', ()=> changeQty(item.id, 1));
+    drawerBody.appendChild(line);
+  });
+  const note = document.createElement('textarea');
+  note.className = 'note';
+  note.placeholder = 'Забелешка за шанкот (алергии, без шеќер...)';
+  note.value = localStorage.getItem('radost_note') || '';
+  note.addEventListener('input', ()=> localStorage.setItem('radost_note', note.value));
+  drawerBody.appendChild(note);
+}
+
+function openDrawer(){ drawer.classList.add('show'); overlay.classList.add('show'); document.body.classList.add('locked'); }
+function closeDrawer(){ drawer.classList.remove('show'); overlay.classList.remove('show'); document.body.classList.remove('locked'); }
+cartFab.addEventListener('click', openDrawer);
+overlay.addEventListener('click', closeDrawer);
+document.getElementById('closeDrawer').addEventListener('click', closeDrawer);
+
+/* ---------------- place order ---------------- */
+const confirmScreen = document.getElementById('confirm');
+const orderNoEl = document.getElementById('orderNo');
+const confirmDetail = document.getElementById('confirmDetail');
+
+placeBtn.addEventListener('click', async ()=>{
+  if(placeBtn.disabled) return;
+  placeBtn.disabled = true;
+  const originalLabel = placeBtn.textContent;
+  placeBtn.textContent = 'Се испраќа...';
+
+  const items = itemsInCart().map(i=>({ id:i.id, name:i.name, vol:i.vol||null, price:i.price, qty:i.qty }));
+  const note = localStorage.getItem('radost_note') || '';
+  const waiter = waiters.find(w=>w.id===selectedWaiterId);
+
+  try{
+    const orderNumber = await getNextOrderNumber();
+    const orderData = {
+      orderNumber,
+      type: orderType,
+      table: orderType === 'table' ? tableNumber : null,
+      items,
+      total: cartTotal(),
+      note,
+      waiterId: waiter ? waiter.id : null,
+      waiterName: waiter ? waiter.name : null,
+      status: 'new',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    const ref = await db.collection('orders').add(orderData);
+    lastOrder = { id: ref.id, ...orderData, createdAt: new Date() };
+
+    orderNoEl.textContent = '#' + orderNumber;
+    confirmDetail.textContent = orderType === 'table'
+      ? `Маса ${tableNumber}${waiter ? ' — ' + waiter.name : ''} — веднаш ти носиме.`
+      : `За понесување — ќе те повикаме кога ќе биде готово.`;
+
+    cart = {};
+    saveCart();
+    localStorage.removeItem('radost_note');
+    closeDrawer();
+    confirmScreen.classList.add('show');
+    document.querySelectorAll('.qty-slot').forEach(slot=> renderQtyControl(slot, slot.dataset.id));
+  }catch(err){
+    console.error('order submit failed', err);
+    alert('Настана грешка при испраќање на нарачката. Провери интернет конекција и обиди се повторно.');
+  }finally{
+    placeBtn.disabled = false;
+    placeBtn.textContent = originalLabel;
+    updateCartUI();
+  }
+});
+
+document.getElementById('newOrderBtn').addEventListener('click', ()=>{
+  confirmScreen.classList.remove('show');
+});
+
+document.getElementById('printReceiptBtn').addEventListener('click', ()=>{
+  if(!lastOrder) return;
+  const el = document.getElementById('printReceipt');
+  const time = new Date().toLocaleString('mk-MK');
+  el.innerHTML = `
+    <h3>radost</h3>
+    <div class="r-line"><span>Нарачка</span><b>#${lastOrder.orderNumber}</b></div>
+    <div class="r-line"><span>${lastOrder.type==='table' ? 'Маса' : 'Понеси'}</span><span>${lastOrder.type==='table' ? (lastOrder.table||'—') : ''}</span></div>
+    ${lastOrder.waiterName ? `<div class="r-line"><span>Келнер</span><span>${lastOrder.waiterName}</span></div>` : ''}
+    <div class="r-line"><span>Време</span><span>${time}</span></div>
+    <hr>
+    ${lastOrder.items.map(i=>`<div class="r-line"><span>${i.qty}× ${i.name}${i.vol?' ('+i.vol+')':''}</span><span>${i.price*i.qty} ден</span></div>`).join('')}
+    <hr>
+    <div class="r-line"><b>Вкупно</b><b>${lastOrder.total} ден</b></div>
+    ${lastOrder.note ? `<div class="r-line"><span>Забелешка</span><span>${lastOrder.note}</span></div>` : ''}
+  `;
+  window.print();
+});
+
+setOrderType(orderType);
+renderTabs();
+renderMenu();
+updateCartUI();
+</script>
+</body>
+</html>
