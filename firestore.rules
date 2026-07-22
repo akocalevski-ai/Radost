@@ -46,5 +46,17 @@ service cloud.firestore {
       allow create: if isStaff();
       allow update, delete: if isAdmin();
     }
+
+    // Weekly waiter schedule — admin edits, staff (waiters) read-only
+    match /schedule/{shiftId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Menu items shown to customers — publicly readable, admin-only writes
+    match /menu/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }
