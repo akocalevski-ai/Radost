@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="mk">
 <head>
 <meta charset="UTF-8">
@@ -434,9 +434,10 @@ const ICONS = {
    desc  -> the small variant/flavor line under some items
    mark  -> shows the small gold accent used on most (not all) items
    ============================================================ */
-const TABS = ['КАФЕ','СОКОВИ','ПИВО','ЖЕСТОКО','ВИНО'];
+const TABS_ORDER = ['КАФЕ','СОКОВИ','ПИВО','ЖЕСТОКО','ВИНО'];
+let TABS = [...TABS_ORDER];
 
-const MENU = [
+const DEFAULT_MENU = [
   // ---- КАФЕ ----
   { id:'esp',    tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Еспресо', price:70 },
   { id:'macm',   tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Макијато мало', price:80, mark:true },
@@ -515,6 +516,13 @@ const MENU = [
 ];
 
 /* ---------------- state ---------------- */
+let MENU = DEFAULT_MENU;
+function computeTabs(){
+  const set = new Set(MENU.map(i=>i.tab));
+  const known = TABS_ORDER.filter(t=> set.has(t));
+  const extra = [...set].filter(t=> !TABS_ORDER.includes(t)).sort((a,b)=> a.localeCompare(b,'mk'));
+  return known.length || extra.length ? [...known, ...extra] : [...TABS_ORDER];
+}
 let cart = JSON.parse(localStorage.getItem('radost_cart') || '{}');
 let orderType = localStorage.getItem('radost_order_type') || 'table';
 let tableNumber = localStorage.getItem('radost_table') || '';
@@ -537,12 +545,23 @@ waiterSel.addEventListener('change', ()=>{
   localStorage.setItem('radost_waiter_id', selectedWaiterId);
 });
 
+/* ---------------- live menu (admin-editable, falls back to DEFAULT_MENU) ---------------- */
+db.collection('menu').where('active','==',true).onSnapshot(snap=>{
+  MENU = snap.empty ? DEFAULT_MENU : snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.order||0)-(b.order||0));
+  TABS = computeTabs();
+  if(!TABS.includes(activeTab)) activeTab = TABS[0];
+  renderTabs();
+  renderMenu();
+}, err=> console.error('menu listener', err));
+
 async function getNextOrderNumber(){
   const counterRef = db.collection('meta').doc('orderCounter');
+  const todayStr = new Date().toDateString(); // e.g. "Tue Jul 21 2026" — resets the sequence once the date changes
   return db.runTransaction(async tx=>{
     const doc = await tx.get(counterRef);
-    const next = (doc.exists ? (doc.data().value || 100) : 100) + 1;
-    tx.set(counterRef, { value: next }, { merge:true });
+    const data = doc.exists ? doc.data() : null;
+    const next = (data && data.date === todayStr) ? (data.value || 0) + 1 : 1;
+    tx.set(counterRef, { value: next, date: todayStr }, { merge:true });
     return next;
   });
 }
