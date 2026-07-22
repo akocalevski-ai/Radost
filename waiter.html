@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="mk">
 <head>
 <meta charset="UTF-8">
@@ -74,6 +74,8 @@
 
   main{ max-width:640px; margin:0 auto; padding:16px 18px 60px; }
   .empty{ text-align:center; color:var(--gray); font-size:13.5px; margin-top:60px; line-height:1.6; }
+  .filter-row{ display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+  .btn-week{ background:var(--card); border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-size:12px; font-weight:700; color:var(--ink-soft); }
 
   .order-card{
     background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg);
@@ -139,6 +141,7 @@
   <nav class="tabs">
     <button class="active" data-tab="queue">На ред</button>
     <button data-tab="done">Завршени денес</button>
+    <button data-tab="schedule">Распоред</button>
   </nav>
   <main id="mainRoot"></main>
 </div>
@@ -246,6 +249,7 @@ document.querySelectorAll('nav.tabs button').forEach(b=>{
     activeTab = b.dataset.tab;
     document.querySelectorAll('nav.tabs button').forEach(x=> x.classList.toggle('active', x===b));
     if(activeTab==='done') loadDoneToday();
+    if(activeTab==='schedule') listenSchedule();
     render();
   });
 });
@@ -265,12 +269,14 @@ function render(){
       return;
     }
     all.forEach(o=> root.appendChild(renderCard(o)));
-  } else {
+  } else if(activeTab==='done'){
     if(doneList.length===0){
       root.innerHTML = '<div class="empty">Сè уште немаш завршено нарачки денес.</div>';
       return;
     }
     doneList.forEach(o=> root.appendChild(renderCard(o, true)));
+  } else if(activeTab==='schedule'){
+    renderScheduleTab(root);
   }
 }
 
@@ -377,6 +383,73 @@ function printOrder(o){
     </div>`;
   el.innerHTML = slip('примерок за клиент') + slip('примерок за келнер');
   window.print();
+}
+
+/* ---------------- SCHEDULE (read-only) ---------------- */
+const DAY_KEYS = ['mon','tue','wed','thu','fri','sat','sun'];
+const DAY_LABELS = ['Понеделник','Вторник','Среда','Четврток','Петок','Сабота','Недела'];
+
+function localDateStr(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function mondayOf(d){
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = (day===0 ? -6 : 1-day);
+  date.setDate(date.getDate()+diff);
+  date.setHours(0,0,0,0);
+  return date;
+}
+function fmtShortDate(d){ return d.toLocaleDateString('mk-MK', {day:'2-digit', month:'2-digit'}); }
+
+let scheduleWeekStart = mondayOf(new Date());
+let scheduleData = { shifts:{} };
+let scheduleUnsub = null;
+
+function listenSchedule(){
+  if(scheduleUnsub) scheduleUnsub();
+  const id = localDateStr(scheduleWeekStart);
+  scheduleUnsub = db.collection('schedule').doc(id).onSnapshot(doc=>{
+    scheduleData = doc.exists ? doc.data() : { shifts:{} };
+    if(activeTab==='schedule') render();
+  }, err=> console.error('schedule listener', err));
+}
+
+function renderScheduleTab(root){
+  const nav = document.createElement('div');
+  nav.className = 'filter-row';
+  nav.innerHTML = `
+    <button class="btn-week" data-nav="prev">‹ Претходна</button>
+    <div style="align-self:center; font-weight:800; font-size:13px; flex:1; text-align:center;">
+      ${fmtShortDate(scheduleWeekStart)} — ${fmtShortDate(new Date(scheduleWeekStart.getTime()+6*86400000))}
+    </div>
+    <button class="btn-week" data-nav="next">Следна ›</button>
+  `;
+  nav.querySelector('[data-nav="prev"]').addEventListener('click', ()=>{
+    scheduleWeekStart = new Date(scheduleWeekStart.getTime() - 7*86400000);
+    listenSchedule(); render();
+  });
+  nav.querySelector('[data-nav="next"]').addEventListener('click', ()=>{
+    scheduleWeekStart = new Date(scheduleWeekStart.getTime() + 7*86400000);
+    listenSchedule(); render();
+  });
+  root.appendChild(nav);
+
+  DAY_KEYS.forEach((key, i)=>{
+    const dayDate = new Date(scheduleWeekStart.getTime() + i*86400000);
+    const shifts = (scheduleData.shifts && scheduleData.shifts[key]) || [];
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    const isToday = localDateStr(dayDate) === localDateStr(new Date());
+    card.innerHTML = `
+      <div class="oc-head"><span class="oc-num" style="font-size:14px;">${DAY_LABELS[i]} · ${fmtShortDate(dayDate)}</span>${isToday ? '<span class="badge progress">Денес</span>' : ''}</div>
+      <div class="oc-items" style="border-bottom:none;">
+        ${shifts.length ? shifts.map(sh=>`<div class="it"><span>${sh.waiterName===myName ? '<b>'+sh.waiterName+'</b> (ти)' : sh.waiterName}</span><span>${sh.start}–${sh.end}</span></div>`).join('') : '<div style="color:var(--gray); font-size:12.5px;">Нема закажани смени.</div>'}
+      </div>
+    `;
+    root.appendChild(card);
+  });
 }
 </script>
 </body>
