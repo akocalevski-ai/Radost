@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="mk">
 <head>
 <meta charset="UTF-8">
@@ -101,6 +101,16 @@
   .inv-row .add-stock button{ background:var(--ink); color:var(--gold-wash); border:none; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; }
 
   .empty{ text-align:center; color:var(--gray); font-size:13px; margin:30px 0; }
+
+  .day-card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg); padding:14px; margin-bottom:12px; box-shadow:var(--shadow-sm); }
+  .day-card .dtitle{ font-weight:800; font-size:13.5px; margin-bottom:8px; }
+  .shift-chip{ display:inline-flex; align-items:center; gap:8px; background:var(--gold-wash); color:var(--gold-dark); border-radius:999px; padding:6px 8px 6px 12px; font-size:12.5px; font-weight:700; margin:0 6px 6px 0; }
+  .shift-chip button{ background:rgba(0,0,0,0.12); color:inherit; border:none; border-radius:50%; width:18px; height:18px; font-size:11px; line-height:1; }
+  .shift-add{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .shift-add select, .shift-add input{ border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:12.5px; }
+  .shift-add select{ flex:1; min-width:110px; }
+  .shift-add input{ width:82px; }
+  .shift-add button{ background:var(--ink); color:var(--gold-wash); border:none; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; }
 </style>
 </head>
 <body>
@@ -127,6 +137,8 @@
     <button data-tab="orders">Нарачки</button>
     <button data-tab="staff">Келнери</button>
     <button data-tab="inventory">Инвентар</button>
+    <button data-tab="menu">Мени</button>
+    <button data-tab="schedule">Распоред</button>
   </nav>
 
   <main>
@@ -193,31 +205,108 @@
       <div class="section-title">Историја на набавки / продажби</div>
       <table><thead><tr><th>Датум</th><th>Артикал</th><th>Промена</th><th>Забелешка</th></tr></thead><tbody id="procBody"><tr><td colspan="4">Се вчитува…</td></tr></tbody></table>
     </section>
+
+    <!-- MENU -->
+    <section class="panel" id="panel-menu">
+      <div class="card-form">
+        <div class="section-title" style="margin-top:0">Нова ставка во менито</div>
+        <div class="grid">
+          <div><label>Категорија (таб)</label><input id="mNewTab" list="tabList" placeholder="напр. КАФЕ"></div>
+          <div><label>Секција</label><input id="mNewSection" placeholder="напр. КАФЕ И ЧАЈ"></div>
+          <div><label>Назив</label><input id="mNewName" placeholder="напр. Капучино"></div>
+          <div><label>Цена (ден)</label><input id="mNewPrice" type="number" step="1"></div>
+          <div><label>Волумен (опционо)</label><input id="mNewVol" placeholder="напр. 0.25 L"></div>
+        </div>
+        <datalist id="tabList"></datalist>
+        <div class="checkbox-row"><input type="checkbox" id="mNewMark" checked><label for="mNewMark" style="margin:0">Истакни (златен акцент)</label></div>
+        <button class="btn-primary" id="addMenuBtn">Додади</button>
+        <div class="msg" id="menuMsg"></div>
+      </div>
+      <div id="menuGroups"><div class="empty">Се вчитува…</div></div>
+    </section>
+
+    <!-- SCHEDULE -->
+    <section class="panel" id="panel-schedule">
+      <div class="filter-row">
+        <button class="btn-ghost" id="weekPrev">‹ Претходна</button>
+        <div id="weekLabel" style="align-self:center; font-weight:800; font-size:13px;">—</div>
+        <button class="btn-ghost" id="weekNext">Следна ›</button>
+      </div>
+      <div id="scheduleDays"><div class="empty">Се вчитува…</div></div>
+    </section>
   </main>
 </div>
 
 <script>
-/* Menu item list (id + name only) used to link inventory items to sales */
-const MENU_LITE = [
-  {id:'esp',name:'Еспресо'},{id:'macm',name:'Макијато мало'},{id:'macg',name:'Макијато големо'},
-  {id:'nes',name:'Нескафе'},{id:'cap',name:'Капучино'},{id:'kakao',name:'Какао'},{id:'turk',name:'Турско кафе'},
-  {id:'fredo',name:'Фредо еспресо'},{id:'caj',name:'Чај'},{id:'ladenm',name:'Ладен чај Београд · мало'},
-  {id:'ladeng',name:'Ладен чај Београд · голем'},{id:'kokakola',name:'Кока Кола'},{id:'kokazero',name:'Кока Кола Зеро'},
-  {id:'fanta',name:'Фанта'},{id:'sveps',name:'Швепс'},{id:'sprajt',name:'Спрајт'},{id:'nekst',name:'Некст'},
-  {id:'fuze',name:'Фузе Ладен Чај'},{id:'rosa',name:'Роса Вода'},{id:'cedenlimon',name:'Цеден лимон'},
-  {id:'cedenport',name:'Цеден портокал'},{id:'cedevita',name:'Цедевита'},{id:'redbul',name:'Ред Бул'},
-  {id:'skopsko',name:'Скопско'},{id:'skopskosmut',name:'Скопско Смут'},{id:'skopskosmut33t',name:'Скопско Смут · точено 0.33'},
-  {id:'skopskosmut50t',name:'Скопско Смут · точено 0.50'},{id:'hajneken25',name:'Хајнекен'},{id:'hajnekenzero',name:'Хајнекен Зеро'},
-  {id:'ginis',name:'Гинис Темно'},{id:'skopskoweiss',name:'Скопско Weiss'},{id:'moretti',name:'Бира Морети'},{id:'amstel',name:'Амстел'},
-  {id:'konjak',name:'Коњак'},{id:'jeger',name:'Јегер'},{id:'martini',name:'Мартини'},{id:'uzo',name:'Узо'},{id:'mastika',name:'Мастика'},
-  {id:'vinjak',name:'Вињак'},{id:'rakijazolta',name:'Ракија жолта'},{id:'pelinkovac',name:'Пелинковац'},{id:'tekila',name:'Текила'},
-  {id:'stok',name:'Шток'},{id:'kampari',name:'Кампари'},{id:'aperolspric',name:'Аперол шприц'},{id:'rumcaptain',name:'Рум Капетан Морган'},
-  {id:'rumbadel',name:'Рум Бадел'},{id:'bakardi',name:'Бакарди Рум'},{id:'smirnoff',name:'Смирноф Вотка'},{id:'absolut',name:'Абсолут Вотка'},
-  {id:'greygoose',name:'Греј Гус Вотка'},{id:'gordons',name:'Гордонс Џин'},{id:'gordonspink',name:'Гордонс Пинк Џин'},
-  {id:'bifiterdzin',name:'Бифитер Џин'},{id:'bifiterpink',name:'Бифитер Пинк'},{id:'hendricks',name:'Хендрикс Џин'},{id:'bombaj',name:'Бомбај Џин'},
-  {id:'dzejmison',name:'Џејмисон'},{id:'jb',name:'Џ&Б'},{id:'dzekdaniels',name:'Џек Даниелс'},{id:'jwred',name:'Џони Вокер Ред'},
-  {id:'jwblack',name:'Џони Вокер Блек'},{id:'monkeyshoulder',name:'Monkey Shoulder'},{id:'chivas',name:'Чивас'},
-  {id:'tgazajug',name:"Т'га за Југ"},{id:'aleksandrija',name:'Александрија'}
+/* One-time seed data — copied into the 'menu' collection the first time this panel loads
+   if that collection is still empty. After that, everything is edited live in Firestore. */
+const SEED_MENU = [
+  { id:'esp',    tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Еспресо', price:70 },
+  { id:'macm',   tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Макијато мало', price:80, mark:true },
+  { id:'macg',   tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Макијато големо', price:90, mark:true },
+  { id:'nes',    tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Нескафе', price:100, mark:true },
+  { id:'cap',    tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Капучино', price:100, mark:true },
+  { id:'kakao',  tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Какао', price:100, mark:true },
+  { id:'turk',   tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Турско кафе', price:60 },
+  { id:'fredo',  tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Фредо еспресо', price:100, mark:true },
+  { id:'caj',    tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Чај', price:60 },
+  { id:'ladenm', tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Ладен чај Београд · мало', price:80, mark:true },
+  { id:'ladeng', tab:'КАФЕ', section:'КАФЕ И ЧАЈ', name:'Ладен чај Београд · голем', price:100, mark:true },
+  { id:'kokakola',  tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Кока Кола', vol:'0.25 L', price:100, mark:true },
+  { id:'kokazero',  tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Кока Кола Зеро', vol:'0.25 L', price:100, mark:true },
+  { id:'fanta',     tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Фанта', vol:'0.25 L', price:100, mark:true },
+  { id:'sveps',     tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Швепс', vol:'0.25 L', price:100, mark:true, desc:'лимон · зеро · тоник · зеро тоник · пинк грејп · танџерина' },
+  { id:'sprajt',    tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Спрајт', vol:'0.25 L', price:100, mark:true },
+  { id:'nekst',     tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Некст', vol:'0.25 L', price:100, mark:true, desc:'портокал · праска · јаболко · коктел' },
+  { id:'fuze',      tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Фузе Ладен Чај', vol:'0.25 L', price:100, mark:true },
+  { id:'rosa',      tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Роса Вода', vol:'0.33 L', price:70, mark:true, desc:'обична · газирана' },
+  { id:'cedenlimon',tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Цеден лимон', price:120, mark:true },
+  { id:'cedenport', tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Цеден портокал', price:140, mark:true },
+  { id:'cedevita',  tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Цедевита', price:80, mark:true },
+  { id:'redbul',    tab:'СОКОВИ', section:'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ', name:'Ред Бул', price:200, mark:true },
+  { id:'skopsko',      tab:'ПИВО', section:'ПИВО', name:'Скопско', vol:'0.33 L', price:120, mark:true },
+  { id:'skopskosmut',  tab:'ПИВО', section:'ПИВО', name:'Скопско Смут', vol:'0.33 L', price:120, mark:true },
+  { id:'skopskosmut33t',tab:'ПИВО', section:'ПИВО', name:'Скопско Смут · точено', vol:'0.33 L', price:120, mark:true },
+  { id:'skopskosmut50t',tab:'ПИВО', section:'ПИВО', name:'Скопско Смут · точено', vol:'0.50 L', price:140, mark:true },
+  { id:'hajneken25',   tab:'ПИВО', section:'ПИВО', name:'Хајнекен', vol:'0.25 L', price:120, mark:true },
+  { id:'hajnekenzero', tab:'ПИВО', section:'ПИВО', name:'Хајнекен Зеро 0%', vol:'0.33 L', price:150, mark:true },
+  { id:'ginis',        tab:'ПИВО', section:'ПИВО', name:'Гинис Темно', vol:'0.33 L', price:200, mark:true },
+  { id:'skopskoweiss', tab:'ПИВО', section:'ПИВО', name:'Скопско Weiss', vol:'0.50 L', price:120, mark:true },
+  { id:'moretti',      tab:'ПИВО', section:'ПИВО', name:'Бира Морети', vol:'0.40 L', price:130, mark:true },
+  { id:'amstel',       tab:'ПИВО', section:'ПИВО', name:'Амстел', vol:'0.33 L', price:140, mark:true },
+  { id:'konjak',    tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Коњак', vol:'0.04 L', price:100 },
+  { id:'jeger',     tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Јегер', vol:'0.04 L', price:130 },
+  { id:'martini',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Мартини', price:100 },
+  { id:'uzo',       tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Узо', vol:'0.04 L', price:80 },
+  { id:'mastika',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Мастика', vol:'0.04 L', price:80 },
+  { id:'vinjak',    tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Вињак', vol:'0.04 L', price:100 },
+  { id:'rakijazolta',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Ракија жолта', vol:'0.04 L', price:80 },
+  { id:'pelinkovac',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Пелинковац', vol:'0.04 L', price:100 },
+  { id:'tekila',    tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Текила', vol:'0.04 L', price:100 },
+  { id:'stok',      tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Шток', vol:'0.04 L', price:100 },
+  { id:'kampari',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Кампари', vol:'0.04 L', price:150 },
+  { id:'aperolspric',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Аперол шприц', price:200 },
+  { id:'rumcaptain',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Рум Капетан Морган', vol:'0.04 L', price:120 },
+  { id:'rumbadel',  tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Рум Бадел', vol:'0.04 L', price:100 },
+  { id:'bakardi',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Бакарди Рум', vol:'0.04 L', price:120 },
+  { id:'smirnoff',  tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Смирноф Вотка', vol:'0.04 L', price:120 },
+  { id:'absolut',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Абсолут Вотка', vol:'0.04 L', price:120 },
+  { id:'greygoose', tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Греј Гус Вотка', vol:'0.04 L', price:250 },
+  { id:'gordons',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Гордонс Џин', vol:'0.04 L', price:120 },
+  { id:'gordonspink',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Гордонс Пинк Џин', vol:'0.04 L', price:120 },
+  { id:'bifiterdzin',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Бифитер Џин', vol:'0.04 L', price:120 },
+  { id:'bifiterpink',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Бифитер Пинк', vol:'0.04 L', price:130 },
+  { id:'hendricks', tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Хендрикс Џин', vol:'0.04 L', price:250 },
+  { id:'bombaj',    tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Бомбај Џин', vol:'0.04 L', price:160 },
+  { id:'dzejmison', tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Џејмисон', vol:'0.04 L', price:150 },
+  { id:'jb',        tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Џ&Б', vol:'0.04 L', price:200 },
+  { id:'dzekdaniels',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Џек Даниелс', vol:'0.04 L', price:200 },
+  { id:'jwred',     tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Џони Вокер Ред', vol:'0.04 L', price:150 },
+  { id:'jwblack',   tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Џони Вокер Блек', vol:'0.04 L', price:200 },
+  { id:'monkeyshoulder',tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Monkey Shoulder', vol:'0.04 L', price:220 },
+  { id:'chivas',    tab:'ЖЕСТОКО', section:'АЛКОХОЛНИ ПИЈАЛОЦИ', name:'Чивас', vol:'0.04 L', price:250 },
+  { id:'tgazajug',  tab:'ВИНО', section:'ВИНО', name:"Т'га за Југ", price:180 },
+  { id:'aleksandrija',tab:'ВИНО', section:'ВИНО', name:'Александрија', price:180 }
 ];
 
 const loginScreen = document.getElementById('loginScreen');
@@ -263,13 +352,28 @@ document.querySelectorAll('nav.tabs button').forEach(b=>{
 });
 
 let initDone = false;
-function initAll(){
+async function initAll(){
   if(initDone) return; initDone = true;
-  populateInvLinkOptions();
+  await seedMenuIfEmpty();
   listenOrders();
   listenStaff();
   listenInventory();
   listenProcurements();
+  listenMenu();
+  listenSchedule();
+}
+
+async function seedMenuIfEmpty(){
+  try{
+    const snap = await db.collection('menu').limit(1).get();
+    if(!snap.empty) return;
+    const batch = db.batch();
+    SEED_MENU.forEach((item, idx)=>{
+      const ref = db.collection('menu').doc(item.id);
+      batch.set(ref, { ...item, order: idx, active: true });
+    });
+    await batch.commit();
+  }catch(err){ console.error('menu seed failed', err); }
 }
 
 /* ---------------- ORDERS (also drives overview) ---------------- */
@@ -388,8 +492,11 @@ document.getElementById('addStaffBtn').addEventListener('click', async ()=>{
   }
 });
 
+let staffList = [];
 function listenStaff(){
   db.collection('staff').onSnapshot(snap=>{
+    staffList = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderScheduleShiftOptions();
     const list = document.getElementById('staffList');
     if(snap.empty){ list.innerHTML = '<div class="empty">Сè уште нема додадено келнери.</div>'; return; }
     list.innerHTML = '';
@@ -399,11 +506,20 @@ function listenStaff(){
       row.className = 'order-row';
       row.innerHTML = `
         <div class="l"><b style="font-family:var(--font-body)">${s.name}</b><div style="color:var(--gray); font-size:11.5px;">${s.email||''}</div></div>
-        <button class="btn-ghost" data-uid="${doc.id}" data-active="${s.active}">${s.active ? 'Деактивирај' : 'Активирај'}</button>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-ghost" data-act="toggle" data-active="${s.active}">${s.active ? 'Деактивирај' : 'Активирај'}</button>
+          <button class="btn-ghost" data-act="delete" style="color:var(--red); border-color:var(--red);">Избриши</button>
+        </div>
       `;
-      row.querySelector('button').addEventListener('click', async e=>{
-        const active = e.target.dataset.active === 'true';
-        await db.collection('staff').doc(doc.id).update({ active: !active });
+      row.querySelector('[data-act="toggle"]').addEventListener('click', async ()=>{
+        await db.collection('staff').doc(doc.id).update({ active: !s.active });
+      });
+      row.querySelector('[data-act="delete"]').addEventListener('click', async ()=>{
+        if(!confirm(`Избриши го келнерот "${s.name}"? Ова само ја отстранува неговата сметка од апликацијата — сметката за најава останува во Firebase Authentication додека рачно не ја избришеш таму.`)) return;
+        try{
+          await db.collection('staff').doc(doc.id).delete();
+          await db.collection('roles').doc(doc.id).delete();
+        }catch(err){ console.error(err); alert('Грешка при бришење.'); }
       });
       list.appendChild(row);
     });
@@ -411,15 +527,6 @@ function listenStaff(){
 }
 
 /* ---------------- INVENTORY ---------------- */
-function populateInvLinkOptions(){
-  const sel = document.getElementById('invLink');
-  MENU_LITE.forEach(m=>{
-    const opt = document.createElement('option');
-    opt.value = m.id; opt.textContent = m.name;
-    sel.appendChild(opt);
-  });
-}
-
 document.getElementById('addInvBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('invName').value.trim();
   const unit = document.getElementById('invUnit').value.trim();
@@ -447,32 +554,69 @@ document.getElementById('addInvBtn').addEventListener('click', async ()=>{
   }
 });
 
+let inventoryList = [];
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 function listenInventory(){
   db.collection('inventory').onSnapshot(snap=>{
+    inventoryList = snap.docs.map(d=>({id:d.id, ...d.data()}));
     const list = document.getElementById('invList');
     if(snap.empty){ list.innerHTML = '<div class="empty">Сè уште нема артикли во инвентарот.</div>'; return; }
     list.innerHTML = '';
-    snap.forEach(doc=>{
-      const inv = doc.data();
-      const linked = MENU_LITE.find(m=> m.id===inv.linkedMenuId);
+    inventoryList.forEach(inv=>{
+      const linked = liveMenuItems.find(m=> m.id===inv.linkedMenuId);
       const low = inv.qty <= (inv.lowStockThreshold||0);
       const row = document.createElement('div');
       row.className = 'inv-row';
       row.innerHTML = `
         <div class="top">
           <div>
-            <div class="name">${inv.name}</div>
-            <div class="meta">${linked ? 'Поврзано со: '+linked.name+' · ' : ''}${inv.usagePerOrder||1} по продажба${low ? ' · <span class="low">МАЛА ЗАЛИХА</span>' : ''}</div>
+            <div class="name">${esc(inv.name)}</div>
+            <div class="meta">${linked ? 'Поврзано со: '+esc(linked.name)+' · ' : ''}${inv.usagePerOrder||1} по продажба${low ? ' · <span class="low">МАЛА ЗАЛИХА</span>' : ''}</div>
           </div>
-          <div class="qty ${low?'low':''}">${inv.qty} ${inv.unit||''}</div>
+          <div class="qty ${low?'low':''}">${inv.qty} ${esc(inv.unit||'')}</div>
         </div>
         <div class="add-stock">
-          <input type="number" step="0.01" placeholder="Кол." id="stock-${doc.id}">
-          <input type="text" placeholder="Забелешка (опц.)" id="note-${doc.id}" style="flex:1">
-          <button data-id="${doc.id}">+ Набавка</button>
+          <input type="number" step="0.01" placeholder="Кол." id="stock-${inv.id}">
+          <input type="text" placeholder="Забелешка (опц.)" id="note-${inv.id}" style="flex:1">
+          <button data-act="proc">+ Набавка</button>
+        </div>
+        <div class="add-stock">
+          <button data-act="edit" style="flex:1; background:transparent; border:1px solid var(--line); color:var(--ink-soft);">✎ Уреди / поправи количина</button>
+          <button data-act="del" style="background:var(--red); color:#fff;">Избриши</button>
+        </div>
+        <div class="edit-box" id="edit-${inv.id}" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">
+          <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
+            <div><label style="font-size:11px; font-weight:700; color:var(--ink-soft);">Назив</label><input value="${esc(inv.name)}" id="e-name-${inv.id}" style="width:100%; border:1px solid var(--line); border-radius:8px; padding:7px 9px;"></div>
+            <div><label style="font-size:11px; font-weight:700; color:var(--ink-soft);">Единица</label><input value="${esc(inv.unit||'')}" id="e-unit-${inv.id}" style="width:100%; border:1px solid var(--line); border-radius:8px; padding:7px 9px;"></div>
+            <div><label style="font-size:11px; font-weight:700; color:var(--ink-soft);">Точна количина</label><input type="number" step="0.01" value="${inv.qty}" id="e-qty-${inv.id}" style="width:100%; border:1px solid var(--gold-dark); border-radius:8px; padding:7px 9px;"></div>
+            <div><label style="font-size:11px; font-weight:700; color:var(--ink-soft);">Праг</label><input type="number" step="0.01" value="${inv.lowStockThreshold||0}" id="e-low-${inv.id}" style="width:100%; border:1px solid var(--line); border-radius:8px; padding:7px 9px;"></div>
+            <div><label style="font-size:11px; font-weight:700; color:var(--ink-soft);">Трошок/продажба</label><input type="number" step="0.01" value="${inv.usagePerOrder||1}" id="e-usage-${inv.id}" style="width:100%; border:1px solid var(--line); border-radius:8px; padding:7px 9px;"></div>
+          </div>
+          <button data-act="save" style="margin-top:8px; background:var(--ink); color:var(--gold-wash); border:none; border-radius:999px; padding:9px 16px; font-weight:700; font-size:12.5px;">Зачувај промени</button>
         </div>
       `;
-      row.querySelector('button').addEventListener('click', ()=> addProcurement(doc.id, inv.name));
+      row.querySelector('[data-act="proc"]').addEventListener('click', ()=> addProcurement(inv.id, inv.name));
+      row.querySelector('[data-act="edit"]').addEventListener('click', ()=>{
+        const box = document.getElementById('edit-'+inv.id);
+        box.style.display = box.style.display==='none' ? 'block' : 'none';
+      });
+      row.querySelector('[data-act="del"]').addEventListener('click', async ()=>{
+        if(!confirm(`Избриши "${inv.name}" од инвентарот?`)) return;
+        try{ await db.collection('inventory').doc(inv.id).delete(); }
+        catch(err){ console.error(err); alert('Грешка при бришење.'); }
+      });
+      row.querySelector('[data-act="save"]').addEventListener('click', async ()=>{
+        const name = document.getElementById('e-name-'+inv.id).value.trim();
+        const unit = document.getElementById('e-unit-'+inv.id).value.trim();
+        const qty = parseFloat(document.getElementById('e-qty-'+inv.id).value) || 0;
+        const low = parseFloat(document.getElementById('e-low-'+inv.id).value) || 0;
+        const usage = parseFloat(document.getElementById('e-usage-'+inv.id).value) || 1;
+        if(!name){ alert('Внеси назив.'); return; }
+        try{
+          await db.collection('inventory').doc(inv.id).update({ name, unit, qty, lowStockThreshold: low, usagePerOrder: usage });
+        }catch(err){ console.error(err); alert('Грешка при зачувување.'); }
+      });
       list.appendChild(row);
     });
   }, err=> console.error('inventory listener', err));
@@ -511,6 +655,236 @@ function listenProcurements(){
       return `<tr><td>${date}</td><td>${p.inventoryName||'—'}</td><td>${sign}${p.delta}</td><td>${p.note||''}</td></tr>`;
     }).join('');
   }, err=> console.error('procurements listener', err));
+}
+
+/* ---------------- MENU MANAGEMENT ---------------- */
+let liveMenuItems = [];
+
+function listenMenu(){
+  db.collection('menu').onSnapshot(snap=>{
+    liveMenuItems = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderMenuGroups();
+    populateTabList();
+    populateInvLinkOptions();
+  }, err=> console.error('menu listener', err));
+}
+
+function populateTabList(){
+  const dl = document.getElementById('tabList');
+  const tabs = [...new Set(liveMenuItems.map(i=> i.tab))];
+  dl.innerHTML = tabs.map(t=> `<option value="${esc(t)}">`).join('');
+}
+
+function populateInvLinkOptions(){
+  const sel = document.getElementById('invLink');
+  const current = sel.value;
+  const sorted = liveMenuItems.slice().sort((a,b)=> a.name.localeCompare(b.name,'mk'));
+  sel.innerHTML = '<option value="">— без поврзување —</option>' +
+    sorted.map(m=> `<option value="${m.id}">${esc(m.name)}</option>`).join('');
+  sel.value = current;
+}
+
+document.getElementById('addMenuBtn').addEventListener('click', async ()=>{
+  const tab = document.getElementById('mNewTab').value.trim().toUpperCase();
+  const section = document.getElementById('mNewSection').value.trim();
+  const name = document.getElementById('mNewName').value.trim();
+  const price = parseFloat(document.getElementById('mNewPrice').value);
+  const vol = document.getElementById('mNewVol').value.trim();
+  const mark = document.getElementById('mNewMark').checked;
+  const msg = document.getElementById('menuMsg');
+  msg.className='msg'; msg.textContent='';
+
+  if(!tab || !section || !name || !price){
+    msg.className='msg bad'; msg.textContent='Пополни ги категорија, секција, назив и цена.'; return;
+  }
+  try{
+    const ref = db.collection('menu').doc();
+    await ref.set({
+      id: ref.id, tab, section, name, price, vol: vol||null, mark,
+      order: Date.now(), active: true, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    msg.className='msg ok'; msg.textContent='Ставката е додадена во менито.';
+    ['mNewSection','mNewName','mNewPrice','mNewVol'].forEach(id=> document.getElementById(id).value='');
+  }catch(err){
+    console.error(err); msg.className='msg bad'; msg.textContent='Грешка при зачувување.';
+  }
+});
+
+function renderMenuGroups(){
+  const root = document.getElementById('menuGroups');
+  if(liveMenuItems.length===0){
+    root.innerHTML = '<div class="empty">Нема ставки во менито. Ако ова е прв пат, освежи ја страницата за да се вчитаат стандардните, или додади нова горе.</div>';
+    return;
+  }
+  const byTab = new Map();
+  liveMenuItems.slice().sort((a,b)=> (a.order||0)-(b.order||0)).forEach(item=>{
+    if(!byTab.has(item.tab)) byTab.set(item.tab, new Map());
+    const secMap = byTab.get(item.tab);
+    if(!secMap.has(item.section)) secMap.set(item.section, []);
+    secMap.get(item.section).push(item);
+  });
+  root.innerHTML = '';
+  byTab.forEach((secMap, tab)=>{
+    const tabTitle = document.createElement('div');
+    tabTitle.className = 'section-title';
+    tabTitle.textContent = tab;
+    root.appendChild(tabTitle);
+    secMap.forEach((items, section)=>{
+      const secEl = document.createElement('div');
+      secEl.style.cssText = 'font-size:11.5px; font-weight:700; color:var(--gray); text-transform:uppercase; margin:10px 0 6px;';
+      secEl.textContent = section;
+      root.appendChild(secEl);
+      items.forEach(item=> root.appendChild(renderMenuRow(item)));
+    });
+  });
+}
+
+function renderMenuRow(item){
+  const row = document.createElement('div');
+  row.className = 'inv-row';
+  row.innerHTML = `
+    <div class="top" style="align-items:flex-start; gap:10px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:160px;">
+        <input value="${esc(item.name)}" data-f="name" style="font-weight:700; border:1px solid var(--line); border-radius:8px; padding:7px 9px; width:100%; margin-bottom:6px;">
+        <input value="${esc(item.vol||'')}" data-f="vol" placeholder="волумен (опц.)" style="border:1px solid var(--line); border-radius:8px; padding:7px 9px; width:100%; font-size:12px;">
+      </div>
+      <div style="width:110px;">
+        <label style="font-size:11px; font-weight:700; color:var(--ink-soft);">Цена (ден)</label>
+        <input type="number" value="${item.price}" data-f="price" style="border:1px solid var(--gold-dark); border-radius:8px; padding:7px 9px; width:100%; font-weight:700;">
+      </div>
+    </div>
+    <div class="add-stock" style="margin-top:10px;">
+      <button data-act="save" style="flex:1; background:var(--ink); color:var(--gold-wash); border:none; border-radius:8px; padding:9px; font-weight:700; font-size:12.5px;">Зачувај</button>
+      <button data-act="del" style="background:var(--red); color:#fff; border:none; border-radius:8px; padding:9px 14px; font-weight:700; font-size:12.5px;">Избриши</button>
+    </div>
+  `;
+  row.querySelector('[data-act="save"]').addEventListener('click', async ()=>{
+    const name = row.querySelector('[data-f="name"]').value.trim();
+    const vol = row.querySelector('[data-f="vol"]').value.trim();
+    const price = parseFloat(row.querySelector('[data-f="price"]').value) || 0;
+    if(!name){ alert('Внеси назив.'); return; }
+    try{ await db.collection('menu').doc(item.id).update({ name, vol: vol||null, price }); }
+    catch(err){ console.error(err); alert('Грешка при зачувување.'); }
+  });
+  row.querySelector('[data-act="del"]').addEventListener('click', async ()=>{
+    if(!confirm(`Избриши "${item.name}" од менито? Ова веднаш ќе исчезне и од апликацијата за нарачки.`)) return;
+    try{ await db.collection('menu').doc(item.id).delete(); }
+    catch(err){ console.error(err); alert('Грешка при бришење.'); }
+  });
+  return row;
+}
+
+/* ---------------- WEEKLY SCHEDULE ---------------- */
+const DAY_KEYS = ['mon','tue','wed','thu','fri','sat','sun'];
+const DAY_LABELS = ['Понеделник','Вторник','Среда','Четврток','Петок','Сабота','Недела'];
+
+function localDateStr(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function mondayOf(d){
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = (day===0 ? -6 : 1-day);
+  date.setDate(date.getDate()+diff);
+  date.setHours(0,0,0,0);
+  return date;
+}
+function fmtShortDate(d){ return d.toLocaleDateString('mk-MK', {day:'2-digit', month:'2-digit'}); }
+
+let currentWeekStart = mondayOf(new Date());
+let currentSchedule = { shifts:{} };
+let scheduleUnsub = null;
+
+function listenSchedule(){
+  if(scheduleUnsub) scheduleUnsub();
+  const id = localDateStr(currentWeekStart);
+  document.getElementById('weekLabel').textContent =
+    fmtShortDate(currentWeekStart) + ' — ' + fmtShortDate(new Date(currentWeekStart.getTime()+6*86400000));
+  scheduleUnsub = db.collection('schedule').doc(id).onSnapshot(doc=>{
+    currentSchedule = doc.exists ? doc.data() : { shifts:{} };
+    renderSchedule();
+  }, err=> console.error('schedule listener', err));
+}
+
+document.getElementById('weekPrev').addEventListener('click', ()=>{
+  currentWeekStart = new Date(currentWeekStart.getTime() - 7*86400000);
+  listenSchedule();
+});
+document.getElementById('weekNext').addEventListener('click', ()=>{
+  currentWeekStart = new Date(currentWeekStart.getTime() + 7*86400000);
+  listenSchedule();
+});
+
+function renderScheduleShiftOptions(){
+  document.querySelectorAll('.shift-waiter-select').forEach(sel=>{
+    const active = staffList.filter(s=> s.active !== false);
+    sel.innerHTML = active.map(s=> `<option value="${s.id}" data-name="${esc(s.name)}">${esc(s.name)}</option>`).join('');
+  });
+}
+
+function renderSchedule(){
+  const root = document.getElementById('scheduleDays');
+  root.innerHTML = '';
+  DAY_KEYS.forEach((key, i)=>{
+    const dayDate = new Date(currentWeekStart.getTime() + i*86400000);
+    const shifts = (currentSchedule.shifts && currentSchedule.shifts[key]) || [];
+    const card = document.createElement('div');
+    card.className = 'day-card';
+    card.innerHTML = `
+      <div class="dtitle">${DAY_LABELS[i]} · ${fmtShortDate(dayDate)}</div>
+      <div class="chips"></div>
+      <div class="shift-add">
+        <select class="shift-waiter-select"></select>
+        <input type="time" value="17:00" class="shift-start">
+        <input type="time" value="23:00" class="shift-end">
+        <button data-act="add">+ Смена</button>
+      </div>
+    `;
+    const chips = card.querySelector('.chips');
+    if(shifts.length===0){
+      chips.innerHTML = '<span style="font-size:12px; color:var(--gray);">Нема закажани смени.</span>';
+    } else {
+      shifts.forEach((sh, idx)=>{
+        const chip = document.createElement('span');
+        chip.className = 'shift-chip';
+        chip.innerHTML = `${esc(sh.waiterName)} · ${sh.start}–${sh.end} <button data-idx="${idx}">×</button>`;
+        chip.querySelector('button').addEventListener('click', ()=> removeShift(key, idx));
+        chips.appendChild(chip);
+      });
+    }
+    const sel = card.querySelector('.shift-waiter-select');
+    const active = staffList.filter(s=> s.active !== false);
+    sel.innerHTML = active.length
+      ? active.map(s=> `<option value="${s.id}" data-name="${esc(s.name)}">${esc(s.name)}</option>`).join('')
+      : '<option value="">— нема активни келнери —</option>';
+    card.querySelector('[data-act="add"]').addEventListener('click', ()=>{
+      if(!sel.value) return;
+      const waiterName = sel.options[sel.selectedIndex].dataset.name;
+      const start = card.querySelector('.shift-start').value;
+      const end = card.querySelector('.shift-end').value;
+      addShift(key, sel.value, waiterName, start, end);
+    });
+    root.appendChild(card);
+  });
+}
+
+async function addShift(dayKey, waiterId, waiterName, start, end){
+  const id = localDateStr(currentWeekStart);
+  const dayShifts = [...((currentSchedule.shifts && currentSchedule.shifts[dayKey]) || [])];
+  dayShifts.push({ waiterId, waiterName, start, end });
+  try{
+    await db.collection('schedule').doc(id).set({ shifts: { [dayKey]: dayShifts } }, { merge:true });
+  }catch(err){ console.error(err); alert('Грешка при зачувување на распоредот.'); }
+}
+
+async function removeShift(dayKey, idx){
+  const id = localDateStr(currentWeekStart);
+  const dayShifts = [...((currentSchedule.shifts && currentSchedule.shifts[dayKey]) || [])];
+  dayShifts.splice(idx, 1);
+  try{
+    await db.collection('schedule').doc(id).set({ shifts: { [dayKey]: dayShifts } }, { merge:true });
+  }catch(err){ console.error(err); alert('Грешка при бришење на смена.'); }
 }
 </script>
 </body>
