@@ -158,8 +158,7 @@ const passInp = document.getElementById('pass');
 
 let myUid = null, myName = '', myRole = '';
 let activeTab = 'queue';
-let mineMap = new Map();       // orders assigned to me, not completed
-let unassignedMap = new Map(); // orders waiting for any waiter
+let openMap = new Map();       // every order that's not completed yet, from any waiter
 let doneList = [];             // completed today, by me
 
 loginBtn.addEventListener('click', async ()=>{
@@ -177,11 +176,10 @@ loginBtn.addEventListener('click', async ()=>{
 
 document.getElementById('logoutBtn').addEventListener('click', ()=> auth.signOut());
 
-let unsubMine=null, unsubUnassigned=null;
+let unsubOpen=null;
 
 auth.onAuthStateChanged(async user=>{
-  if(unsubMine){ unsubMine(); unsubMine=null; }
-  if(unsubUnassigned){ unsubUnassigned(); unsubUnassigned=null; }
+  if(unsubOpen){ unsubOpen(); unsubOpen=null; }
 
   if(!user){
     loginScreen.style.display='flex'; appScreen.style.display='none';
@@ -212,21 +210,12 @@ auth.onAuthStateChanged(async user=>{
 });
 
 function startListeners(){
-  unsubMine = db.collection('orders')
-    .where('waiterId','==', myUid)
+  unsubOpen = db.collection('orders')
     .where('status','in', ['new','in_progress'])
     .onSnapshot(snap=>{
-      mineMap = new Map(snap.docs.map(d=>[d.id, {id:d.id, ...d.data()}]));
+      openMap = new Map(snap.docs.map(d=>[d.id, {id:d.id, ...d.data()}]));
       render();
-    }, err=> console.error('mine listener', err));
-
-  unsubUnassigned = db.collection('orders')
-    .where('waiterId','==', null)
-    .where('status','==', 'new')
-    .onSnapshot(snap=>{
-      unassignedMap = new Map(snap.docs.map(d=>[d.id, {id:d.id, ...d.data()}]));
-      render();
-    }, err=> console.error('unassigned listener', err));
+    }, err=> console.error('open orders listener', err));
 
   loadDoneToday();
 }
@@ -262,10 +251,9 @@ function render(){
   root.innerHTML = '';
 
   if(activeTab==='queue'){
-    const all = [...mineMap.values(), ...unassignedMap.values()]
-      .sort((a,b)=> ts(a.createdAt) - ts(b.createdAt));
+    const all = [...openMap.values()].sort((a,b)=> ts(a.createdAt) - ts(b.createdAt));
     if(all.length===0){
-      root.innerHTML = '<div class="empty">Нема нарачки на ред.<br>Овде ќе се појават новите нарачки во живо.</div>';
+      root.innerHTML = '<div class="empty">Нема отворени нарачки.<br>Овде ќе се појават новите нарачки во живо.</div>';
       return;
     }
     all.forEach(o=> root.appendChild(renderCard(o)));
@@ -290,7 +278,7 @@ function renderCard(o, done=false){
     <div class="oc-meta">
       <span>${o.type==='table' ? 'Маса ' + (o.table||'—') : 'За понесување'}</span>
       <span>${fmtTime(ts(o.createdAt))}</span>
-      ${o.waiterName ? `<span>${o.waiterName}</span>` : ''}
+      ${o.waiterName ? `<span>${isMine ? 'Кај тебе' : 'Кај ' + o.waiterName}</span>` : (done ? '' : '<span>Нема келнер</span>')}
     </div>
     <div class="oc-items">
       ${o.items.map(i=>`<div class="it"><span>${i.qty}× ${i.name}${i.vol?' ('+i.vol+')':''}</span><span>${i.price*i.qty} ден</span></div>`).join('')}
@@ -312,7 +300,7 @@ function renderCard(o, done=false){
     if(!isMine){
       const claimBtn = document.createElement('button');
       claimBtn.className = 'btn-claim';
-      claimBtn.textContent = 'Преземи';
+      claimBtn.textContent = o.waiterId ? 'Преземи за себе' : 'Преземи';
       claimBtn.addEventListener('click', ()=> claimOrder(o));
       actions.appendChild(claimBtn);
     } else {
