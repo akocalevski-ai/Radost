@@ -50,15 +50,33 @@ That's it — open `admin.html`, log in with that email/password, and you're in.
 
 From the admin panel:
 - **Келнери** tab → add each waiter's name, email, and a password. They can immediately log in at `waiter.html` with those credentials. (You can also tick "Направи администратор" to create another admin account instead of a waiter.)
-- **Инвентар** tab → add your stock items (e.g. bottles, cups, syrup). Optionally link an item to a menu item and set how many units are used per sale — when a waiter marks an order complete, that quantity is deducted automatically and logged. Use "+ Набавка" any time you restock to log a procurement and increase the quantity on hand.
+- **Инвентар** tab → add your stock items (e.g. bottles, cups, syrup). Optionally link an item to a menu item and set how many units are used per sale — when a waiter marks an order complete, that quantity is deducted automatically and logged. Use "+ Набавка" any time you restock to log a procurement and increase the quantity on hand. Use "✎ Уреди / поправи количина" to correct a quantity directly (e.g. after a stock count) or edit the item's details, and "Избриши" to remove an item entirely.
 
 ## How orders flow
 
-1. A customer opens `index.html`, orders, optionally picks a waiter, and taps **Нарачај**. This writes an order to Firestore and gets an order number from an atomic counter (safe even with many customers ordering at once).
+1. A customer opens `index.html`, orders, optionally picks a waiter, and taps **Нарачај**. This writes an order to Firestore and gets an order number from an atomic counter (safe even with many customers ordering at once). Order numbers restart at 1 every day.
 2. If a waiter was chosen, the order appears only in that waiter's queue on `waiter.html`. If not, it appears in everyone's queue as unassigned, and any waiter can tap **Преземи** (claim) to take it.
 3. The waiter taps **Заврши нарачка** when it's done — this marks it completed, records who served it, and (if any items are linked in inventory) deducts stock automatically.
 4. The waiter can tap the 🖨 print icon any time to open the browser's print dialog with a receipt showing the order number — one slip for the customer, one for the waiter. The customer can also print their own copy from the confirmation screen after ordering.
-5. `admin.html` shows live totals (today / last 7 days), today's best sellers, every order with status filters, staff management, and the full inventory + procurement log.
+5. `admin.html` shows live totals (today / last 7 days), today's best sellers, every order with status filters, staff management, menu management, weekly scheduling, and the full inventory + procurement log.
+
+## Menu editing
+
+The **Мени** tab in the admin panel is the source of truth for what customers see. The first time you open the admin panel, it copies the existing menu into Firestore automatically (one-time only) — after that, every edit (price, name, size, new item, delete) is live and shows up on `index.html` within a second, no redeploy needed. Deleting an item there removes it from the ordering menu immediately.
+
+## Weekly schedule
+
+Admins can build a weekly shift schedule in the **Распоред** tab — pick a waiter, a start/end time, per day, for the week shown. Waiters see the same week (read-only, no editing) under their own **Распоред** tab, with their own name bolded and marked "(ти)". Use the ‹ / › buttons to move between weeks.
+
+The customer ordering page also uses this schedule: the "Келнер" dropdown only offers waiters whose current shift covers right now. If you haven't set up a shift for the current week yet, it falls back to showing every active waiter (so ordering isn't blocked while you're still setting things up) — once a schedule exists for the week, only whoever's actually on shift shows up.
+
+## Shared order queue
+
+Every waiter sees every open order on `waiter.html`, not just their own — including orders someone else has already claimed. If an order is already with another waiter, the button reads "Преземи за себе" (take it for yourself); tapping it reassigns the order to you immediately. This is meant for cases where a waiter is busy or off the floor and a colleague needs to step in — there's no lock, so whoever taps last "wins" the order.
+
+## Deleting staff
+
+The **Избриши** button on a waiter in the **Келнери** tab removes them from the app immediately (they'll be signed out of `waiter.html` on their next action and won't appear in the customer's waiter list or the schedule dropdown). It does **not** delete their Firebase login itself — client apps aren't allowed to delete other users' logins for security reasons. If you want the login gone completely too, go to Firebase console → **Authentication → Users**, find them, and delete them there as well.
 
 ## Notes & limits
 
