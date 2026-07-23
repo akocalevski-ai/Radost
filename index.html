@@ -531,14 +531,69 @@ let waiters = [];
 let selectedWaiterId = localStorage.getItem('radost_waiter_id') || '';
 let lastOrder = null;
 
-/* ---------------- waiter list (live from Firestore) ---------------- */
+/* ---------------- waiter list (live from Firestore, filtered to who's on shift) ---------------- */
+const DAY_KEYS = ['mon','tue','wed','thu','fri','sat','sun'];
+function localDateStr(d=new Date()){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function mondayOf(d){
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = (day===0 ? -6 : 1-day);
+  date.setDate(date.getDate()+diff);
+  date.setHours(0,0,0,0);
+  return date;
+}
+function isWorkingNow(scheduleDoc, staffId){
+  if(!scheduleDoc || !scheduleDoc.shifts) return false;
+  const now = new Date();
+  const dayKey = DAY_KEYS[(now.getDay()+6)%7];
+  const shifts = scheduleDoc.shifts[dayKey] || [];
+  const nowMins = now.getHours()*60 + now.getMinutes();
+  return shifts.some(sh=>{
+    if(sh.waiterId !== staffId) return false;
+    const [sh_,sm] = sh.start.split(':').map(Number);
+    const [eh,em] = sh.end.split(':').map(Number);
+    const startMins = sh_*60+sm, endMins = eh*60+em;
+    return endMins > startMins ? (nowMins>=startMins && nowMins<=endMins) : (nowMins>=startMins || nowMins<=endMins);
+  });
+}
+
 const waiterSel = document.getElementById('waiterSel');
-db.collection('staff').where('active','==',true).onSnapshot(snap=>{
-  waiters = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+let scheduleDoc = null;
+let scheduleHasDoc = false;
+let scheduleWeekId = null;
+let scheduleUnsub = null;
+
+function renderWaiterOptions(){
+  // If no schedule has been set up for this week at all, fall back to showing everyone active
+  // (so the dropdown isn't empty before the admin ever builds a schedule).
+  const filtered = scheduleHasDoc ? waiters.filter(w=> isWorkingNow(scheduleDoc, w.id)) : waiters;
   const prev = selectedWaiterId;
   waiterSel.innerHTML = '<option value="">— било кој —</option>' +
-    waiters.map(w=>`<option value="${w.id}">${w.name}</option>`).join('');
-  waiterSel.value = waiters.some(w=>w.id===prev) ? prev : '';
+    filtered.map(w=>`<option value="${w.id}">${w.name}</option>`).join('');
+  waiterSel.value = filtered.some(w=>w.id===prev) ? prev : '';
+  if(waiterSel.value !== prev) selectedWaiterId = waiterSel.value;
+}
+
+function watchSchedule(){
+  const wid = localDateStr(mondayOf(new Date()));
+  if(wid === scheduleWeekId) return;
+  scheduleWeekId = wid;
+  if(scheduleUnsub) scheduleUnsub();
+  scheduleUnsub = db.collection('schedule').doc(wid).onSnapshot(doc=>{
+    scheduleHasDoc = doc.exists;
+    scheduleDoc = doc.exists ? doc.data() : null;
+    renderWaiterOptions();
+  }, err=> console.error('schedule listener', err));
+}
+watchSchedule();
+setInterval(()=>{ watchSchedule(); renderWaiterOptions(); }, 60000);
+
+db.collection('staff').where('active','==',true).onSnapshot(snap=>{
+  waiters = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+  renderWaiterOptions();
 }, err=> console.error('staff listener', err));
 waiterSel.addEventListener('change', ()=>{
   selectedWaiterId = waiterSel.value;
