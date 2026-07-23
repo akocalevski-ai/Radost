@@ -47,9 +47,10 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Weekly waiter schedule — admin edits, staff (waiters) read-only
+    // Weekly waiter schedule — admin edits; staff and the public ordering page can read
+    // (the customer app reads this to only offer waiters who are currently on shift)
     match /schedule/{shiftId} {
-      allow read: if isStaff();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
