@@ -74,6 +74,14 @@ The customer ordering page also uses this schedule: the "Келнер" dropdown 
 
 Every waiter sees every open order on `waiter.html`, not just their own — including orders someone else has already claimed. If an order is already with another waiter, the button reads "Преземи за себе" (take it for yourself); tapping it reassigns the order to you immediately. This is meant for cases where a waiter is busy or off the floor and a colleague needs to step in — there's no lock, so whoever taps last "wins" the order.
 
+## Waiter statistics & employee of the week
+
+The **Статистика** tab in the admin panel shows a leaderboard (orders completed and revenue generated) for whatever week you're viewing — use ‹ / › to move between weeks, it always resets to a clean slate per week rather than accumulating. The top earner is highlighted as "🏆 Вработен на неделата". Every time you view a week, that week's current leader is saved to a running log shown below the leaderboard, so you always have a record of who won each calendar week, even past ones — this updates automatically as the week's orders come in, and simply stops changing once the week is over.
+
+## Inventory export
+
+In the **Инвентар** tab, two buttons above the item list export directly to an `.xlsx` file you can open in Excel: **"Извези цел инвентар"** exports every item, **"Извези само мала залиха"** exports only the items currently at or below their low-stock threshold — handy as a shopping list before a supply run.
+
 ## Deleting staff
 
 The **Избриши** button on a waiter in the **Келнери** tab removes them from the app immediately (they'll be signed out of `waiter.html` on their next action and won't appear in the customer's waiter list or the schedule dropdown). It does **not** delete their Firebase login itself — client apps aren't allowed to delete other users' logins for security reasons. If you want the login gone completely too, go to Firebase console → **Authentication → Users**, find them, and delete them there as well.
