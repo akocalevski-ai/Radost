@@ -11,6 +11,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --ink:#211D18; --ink-soft:#4A423A; --bg:#F2EDE1; --card:#FBF9F4; --gray:#948C7D;
@@ -139,6 +140,7 @@
     <button data-tab="inventory">Инвентар</button>
     <button data-tab="menu">Мени</button>
     <button data-tab="schedule">Распоред</button>
+    <button data-tab="stats">Статистика</button>
   </nav>
 
   <main>
@@ -201,6 +203,10 @@
         <div class="msg" id="invMsg"></div>
       </div>
       <div class="section-title">Тековен инвентар</div>
+      <div class="filter-row">
+        <button class="btn-ghost" id="exportInvAll">⬇ Извези цел инвентар (Excel)</button>
+        <button class="btn-ghost" id="exportInvLow">⬇ Извези само мала залиха (Excel)</button>
+      </div>
       <div id="invList"><div class="empty">Се вчитува…</div></div>
       <div class="section-title">Историја на набавки / продажби</div>
       <table><thead><tr><th>Датум</th><th>Артикал</th><th>Промена</th><th>Забелешка</th></tr></thead><tbody id="procBody"><tr><td colspan="4">Се вчитува…</td></tr></tbody></table>
@@ -233,6 +239,20 @@
         <button class="btn-ghost" id="weekNext">Следна ›</button>
       </div>
       <div id="scheduleDays"><div class="empty">Се вчитува…</div></div>
+    </section>
+
+    <!-- STATS -->
+    <section class="panel" id="panel-stats">
+      <div class="filter-row">
+        <button class="btn-ghost" id="statsWeekPrev">‹ Претходна</button>
+        <div id="statsWeekLabel" style="align-self:center; font-weight:800; font-size:13px;">—</div>
+        <button class="btn-ghost" id="statsWeekNext">Следна ›</button>
+      </div>
+      <div id="empWinnerCard"></div>
+      <div class="section-title">Рангирање за оваа недела</div>
+      <table><thead><tr><th>Келнер</th><th>Нарачки</th><th>Промет</th></tr></thead><tbody id="statsLeaderboardBody"><tr><td colspan="3">Се вчитува…</td></tr></tbody></table>
+      <div class="section-title">Историја — вработен на неделата</div>
+      <table><thead><tr><th>Недела</th><th>Вработен</th><th>Нарачки</th><th>Промет</th></tr></thead><tbody id="empHistoryBody"><tr><td colspan="4">Се вчитува…</td></tr></tbody></table>
     </section>
   </main>
 </div>
@@ -361,6 +381,7 @@ async function initAll(){
   listenProcurements();
   listenMenu();
   listenSchedule();
+  listenEmployeeHistory();
 }
 
 async function seedMenuIfEmpty(){
@@ -386,6 +407,7 @@ function listenOrders(){
       allOrders = snap.docs.map(d=>({id:d.id, ...d.data()}));
       renderOverview();
       renderOrders();
+      renderStatsTab();
     }, err=>{
       console.error('orders listener', err);
       document.getElementById('ordersList').innerHTML = '<div class="empty">Грешка при вчитување (провери Firestore правила/индекси во конзолата).</div>';
@@ -556,6 +578,31 @@ document.getElementById('addInvBtn').addEventListener('click', async ()=>{
 
 let inventoryList = [];
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function exportInventoryExcel(onlyLow){
+  const rows = inventoryList
+    .filter(inv=> !onlyLow || inv.qty <= (inv.lowStockThreshold||0))
+    .map(inv=>({
+      'Назив': inv.name,
+      'Единица': inv.unit || '',
+      'Количина': inv.qty,
+      'Праг за мала залиха': inv.lowStockThreshold || 0,
+      'Статус': inv.qty <= (inv.lowStockThreshold||0) ? 'МАЛА ЗАЛИХА' : 'ОК',
+      'Поврзана ставка': (liveMenuItems.find(m=> m.id===inv.linkedMenuId) || {}).name || ''
+    }));
+  if(rows.length===0){
+    alert(onlyLow ? 'Нема артикли со мала залиха моментално.' : 'Инвентарот е сè уште празен.');
+    return;
+  }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:28},{wch:10},{wch:12},{wch:16},{wch:14},{wch:24}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Инвентар');
+  const fname = `radost-inventar${onlyLow ? '-mala-zaliha' : ''}-${localDateStr(new Date())}.xlsx`;
+  XLSX.writeFile(wb, fname);
+}
+document.getElementById('exportInvAll').addEventListener('click', ()=> exportInventoryExcel(false));
+document.getElementById('exportInvLow').addEventListener('click', ()=> exportInventoryExcel(true));
 
 function listenInventory(){
   db.collection('inventory').onSnapshot(snap=>{
@@ -885,6 +932,86 @@ async function removeShift(dayKey, idx){
   try{
     await db.collection('schedule').doc(id).set({ shifts: { [dayKey]: dayShifts } }, { merge:true });
   }catch(err){ console.error(err); alert('Грешка при бришење на смена.'); }
+}
+
+/* ---------------- WAITER STATISTICS / EMPLOYEE OF THE WEEK ---------------- */
+let statsWeekStart = mondayOf(new Date());
+
+function computeWeekStats(weekStart){
+  const start = new Date(weekStart); start.setHours(0,0,0,0);
+  const end = new Date(start.getTime() + 7*86400000);
+  const weekOrders = allOrders.filter(o=>
+    o.status==='completed' && o.waiterId && o.completedAt && ts(o.completedAt) >= start && ts(o.completedAt) < end
+  );
+  const tally = new Map();
+  weekOrders.forEach(o=>{
+    const cur = tally.get(o.waiterId) || { name: o.waiterName || 'Непознато', orders:0, revenue:0 };
+    cur.orders += 1;
+    cur.revenue += o.total;
+    tally.set(o.waiterId, cur);
+  });
+  return [...tally.entries()].map(([id,v])=>({ id, ...v })).sort((a,b)=> b.revenue - a.revenue);
+}
+
+async function saveWeekWinner(weekId, weekLabel, leaderboard){
+  if(!leaderboard.length) return;
+  const top = leaderboard[0];
+  try{
+    await db.collection('employeeOfWeek').doc(weekId).set({
+      waiterId: top.id, waiterName: top.name, orders: top.orders, revenue: top.revenue,
+      weekLabel, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(err){ console.error('save week winner failed', err); }
+}
+
+function renderStatsTab(){
+  const labelEl = document.getElementById('statsWeekLabel');
+  if(!labelEl) return; // panel not in the DOM yet on first paint
+  const weekLabel = fmtShortDate(statsWeekStart) + ' — ' + fmtShortDate(new Date(statsWeekStart.getTime()+6*86400000));
+  labelEl.textContent = weekLabel;
+
+  const leaderboard = computeWeekStats(statsWeekStart);
+
+  const winnerEl = document.getElementById('empWinnerCard');
+  if(leaderboard.length===0){
+    winnerEl.innerHTML = '<div class="empty">Нема завршени нарачки оваа недела сè уште.</div>';
+  } else {
+    const top = leaderboard[0];
+    winnerEl.innerHTML = `
+      <div class="stat" style="background:linear-gradient(135deg, var(--gold-wash), var(--card)); border-color:var(--gold-dark); margin-bottom:20px;">
+        <div class="lbl">🏆 Вработен на неделата</div>
+        <div class="val">${esc(top.name)}</div>
+        <div style="font-size:12.5px; color:var(--ink-soft); margin-top:4px;">${top.orders} нарачки · ${top.revenue} ден промет</div>
+      </div>`;
+  }
+
+  const tbody = document.getElementById('statsLeaderboardBody');
+  tbody.innerHTML = leaderboard.length
+    ? leaderboard.map(w=> `<tr><td>${esc(w.name)}</td><td>${w.orders}</td><td>${w.revenue} ден</td></tr>`).join('')
+    : '<tr><td colspan="3">Нема завршени нарачки оваа недела.</td></tr>';
+
+  saveWeekWinner(localDateStr(statsWeekStart), weekLabel, leaderboard);
+}
+
+document.getElementById('statsWeekPrev').addEventListener('click', ()=>{
+  statsWeekStart = new Date(statsWeekStart.getTime() - 7*86400000);
+  renderStatsTab();
+});
+document.getElementById('statsWeekNext').addEventListener('click', ()=>{
+  statsWeekStart = new Date(statsWeekStart.getTime() + 7*86400000);
+  renderStatsTab();
+});
+
+function listenEmployeeHistory(){
+  db.collection('employeeOfWeek').orderBy(firebase.firestore.FieldPath.documentId(), 'desc').limit(26)
+    .onSnapshot(snap=>{
+      const tbody = document.getElementById('empHistoryBody');
+      if(snap.empty){ tbody.innerHTML = '<tr><td colspan="4">Сè уште нема евидентирани недели.</td></tr>'; return; }
+      tbody.innerHTML = snap.docs.map(d=>{
+        const w = d.data();
+        return `<tr><td>${esc(w.weekLabel || d.id)}</td><td>${esc(w.waiterName)}</td><td>${w.orders}</td><td>${w.revenue} ден</td></tr>`;
+      }).join('');
+    }, err=> console.error('employee history listener', err));
 }
 </script>
 </body>
