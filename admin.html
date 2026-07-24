@@ -810,6 +810,9 @@ document.getElementById('addMenuBtn').addEventListener('click', async ()=>{
   }
 });
 
+let openMenuTabs = new Set();
+const MENU_CAT_ORDER = ['КАФЕ','СОКОВИ','ПИВО','ЖЕСТОКО','ВИНО'];
+
 function renderMenuGroups(){
   const root = document.getElementById('menuGroups');
   if(liveMenuItems.length===0){
@@ -823,19 +826,40 @@ function renderMenuGroups(){
     if(!secMap.has(item.section)) secMap.set(item.section, []);
     secMap.get(item.section).push(item);
   });
+  const allTabs = [...byTab.keys()];
+  const orderedTabs = [
+    ...MENU_CAT_ORDER.filter(t=> byTab.has(t)),
+    ...allTabs.filter(t=> !MENU_CAT_ORDER.includes(t)).sort((a,b)=> a.localeCompare(b,'mk'))
+  ];
+
   root.innerHTML = '';
-  byTab.forEach((secMap, tab)=>{
-    const tabTitle = document.createElement('div');
-    tabTitle.className = 'section-title';
-    tabTitle.textContent = tab;
-    root.appendChild(tabTitle);
+  orderedTabs.forEach(tab=>{
+    const secMap = byTab.get(tab);
+    const itemCount = [...secMap.values()].reduce((s,arr)=> s+arr.length, 0);
+    const isOpen = openMenuTabs.has(tab);
+    const group = document.createElement('div');
+    group.className = 'inv-row' + (isOpen ? ' open' : '');
+    group.innerHTML = `
+      <div class="top">
+        <div><span class="chev">▶</span><span class="name">${esc(tab)}</span>
+          <div class="meta" style="margin-left:18px;">${itemCount} ставки</div>
+        </div>
+      </div>
+      <div class="body"></div>
+    `;
+    group.querySelector('.top').addEventListener('click', ()=>{
+      if(openMenuTabs.has(tab)) openMenuTabs.delete(tab); else openMenuTabs.add(tab);
+      renderMenuGroups();
+    });
+    const bodyEl = group.querySelector('.body');
     secMap.forEach((items, section)=>{
       const secEl = document.createElement('div');
       secEl.style.cssText = 'font-size:11.5px; font-weight:700; color:var(--gray); text-transform:uppercase; margin:10px 0 6px;';
       secEl.textContent = section;
-      root.appendChild(secEl);
-      items.forEach(item=> root.appendChild(renderMenuRow(item)));
+      bodyEl.appendChild(secEl);
+      items.forEach(item=> bodyEl.appendChild(renderMenuRow(item)));
     });
+    root.appendChild(group);
   });
 }
 
@@ -843,7 +867,7 @@ function renderMenuRow(item){
   const row = document.createElement('div');
   row.className = 'inv-row';
   row.innerHTML = `
-    <div class="top" style="align-items:flex-start; gap:10px; flex-wrap:wrap;">
+    <div class="top" style="align-items:flex-start; gap:10px; flex-wrap:wrap; cursor:default;">
       <div style="flex:1; min-width:160px;">
         <input value="${esc(item.name)}" data-f="name" style="font-weight:700; border:1px solid var(--line); border-radius:8px; padding:7px 9px; width:100%; margin-bottom:6px;">
         <input value="${esc(item.vol||'')}" data-f="vol" placeholder="волумен (опц.)" style="border:1px solid var(--line); border-radius:8px; padding:7px 9px; width:100%; font-size:12px;">
