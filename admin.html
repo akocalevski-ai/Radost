@@ -81,6 +81,18 @@
   .badge.new{ background:var(--gold-wash); color:var(--gold-dark); }
   .badge.progress{ background:#E4EEE8; color:var(--green); }
   .badge.completed{ background:#E7E2D6; color:var(--ink-soft); }
+  .badge.paid{ background:#E4EEE8; color:var(--green); }
+  .badge.unpaid{ background:#F7DCD8; color:var(--red); }
+
+  .bill-group{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg); padding:14px 16px; margin-bottom:12px; box-shadow:var(--shadow-sm); }
+  .bill-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .bill-head .t{ font-weight:800; font-size:14px; }
+  .bill-line{ display:flex; justify-content:space-between; font-size:12.5px; padding:5px 0; border-bottom:1px dashed var(--line); }
+  .bill-line:last-of-type{ border-bottom:none; }
+  .bill-total{ display:flex; justify-content:space-between; font-weight:800; font-size:13.5px; margin:8px 0; }
+  .pay-btn{ width:100%; margin-top:6px; padding:10px; border-radius:999px; font-weight:800; font-size:12.5px; border:none; }
+  .pay-btn.mark-paid{ background:var(--gold); color:var(--ink); }
+  .pay-btn.mark-open{ background:transparent; border:1px solid var(--line); color:var(--ink-soft); }
 
   .card-form{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow-sm); margin-bottom:20px; }
   .card-form .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:10px; }
@@ -146,6 +158,7 @@
     <button data-tab="menu">Мени</button>
     <button data-tab="schedule">Распоред</button>
     <button data-tab="stats">Статистика</button>
+    <button data-tab="bills">Сметки</button>
   </nav>
 
   <main>
@@ -264,6 +277,14 @@
       <table><thead><tr><th>Келнер</th><th>Нарачки</th><th>Промет</th></tr></thead><tbody id="statsLeaderboardBody"><tr><td colspan="3">Се вчитува…</td></tr></tbody></table>
       <div class="section-title">Историја — вработен на неделата</div>
       <table><thead><tr><th>Недела</th><th>Вработен</th><th>Нарачки</th><th>Промет</th></tr></thead><tbody id="empHistoryBody"><tr><td colspan="4">Се вчитува…</td></tr></tbody></table>
+    </section>
+
+    <!-- BILLS -->
+    <section class="panel" id="panel-bills">
+      <div class="filter-row">
+        <button class="btn-ghost" id="billsShowPaidBtn">Прикажи ги и платените</button>
+      </div>
+      <div id="billsList"><div class="empty">Се вчитува…</div></div>
     </section>
   </main>
 </div>
@@ -419,6 +440,7 @@ function listenOrders(){
       renderOverview();
       renderOrders();
       renderStatsTab();
+      renderBillsList();
     }, err=>{
       console.error('orders listener', err);
       document.getElementById('ordersList').innerHTML = '<div class="empty">Грешка при вчитување (провери Firestore правила/индекси во конзолата).</div>';
@@ -1089,6 +1111,95 @@ function listenEmployeeHistory(){
         return `<tr><td>${esc(w.weekLabel || d.id)}</td><td>${esc(w.waiterName)}</td><td>${w.orders}</td><td>${w.revenue} ден</td></tr>`;
       }).join('');
     }, err=> console.error('employee history listener', err));
+}
+
+/* ---------------- BILLS (paid / open, grouped by table) ---------------- */
+let showPaidBills = false;
+
+async function togglePaid(orderId, makePaid){
+  try{ await db.collection('orders').doc(orderId).update({ paid: makePaid }); }
+  catch(err){ console.error(err); alert('Грешка при промена на статусот на плаќање.'); }
+}
+
+function billGroupCard(title, orders){
+  const unpaidOrders = orders.filter(o=> !o.paid);
+  const allPaid = unpaidOrders.length===0;
+  const sum = orders.reduce((s,o)=> s+o.total, 0);
+  const unpaidSum = unpaidOrders.reduce((s,o)=> s+o.total, 0);
+
+  const card = document.createElement('div');
+  card.className = 'bill-group';
+  card.innerHTML = `
+    <div class="bill-head">
+      <span class="t">${esc(title)}</span>
+      <span class="badge ${allPaid ? 'paid' : 'unpaid'}">${allPaid ? 'Платено' : 'Отворено'}</span>
+    </div>
+    ${orders.map(o=> `
+      <div class="bill-line">
+        <span>#${o.orderNumber} · ${o.items.reduce((s,i)=>s+i.qty,0)} ставки${o.waiterName ? ' · '+esc(o.waiterName) : ''}</span>
+        <span>${o.total} ден</span>
+      </div>
+    `).join('')}
+    <div class="bill-total"><span>Вкупно${!allPaid ? ' (неплатено: '+unpaidSum+' ден)' : ''}</span><span>${sum} ден</span></div>
+  `;
+  const btn = document.createElement('button');
+  btn.className = 'pay-btn ' + (allPaid ? 'mark-open' : 'mark-paid');
+  btn.textContent = allPaid ? 'Означи како отворено' : 'Означи како платено';
+  btn.addEventListener('click', async ()=>{
+    btn.disabled = true;
+    if(allPaid){ await Promise.all(orders.map(o=> togglePaid(o.id, false))); }
+    else{ await Promise.all(unpaidOrders.map(o=> togglePaid(o.id, true))); }
+    btn.disabled = false;
+  });
+  card.appendChild(btn);
+  return card;
+}
+
+document.getElementById('billsShowPaidBtn').addEventListener('click', function(){
+  showPaidBills = !showPaidBills;
+  this.textContent = showPaidBills ? '✓ Прикажани и платените' : 'Прикажи ги и платените';
+  renderBillsList();
+});
+
+function renderBillsList(){
+  const root = document.getElementById('billsList');
+  if(!root) return;
+  root.innerHTML = '';
+
+  const completed = allOrders.filter(o=> o.status==='completed');
+  const tableGroups = new Map();
+  const noTable = [];
+  completed.forEach(o=>{
+    if(o.type==='table' && o.table){
+      if(!tableGroups.has(o.table)) tableGroups.set(o.table, []);
+      tableGroups.get(o.table).push(o);
+    } else {
+      noTable.push(o);
+    }
+  });
+
+  let rendered = 0;
+  const sortedTables = [...tableGroups.keys()].sort((a,b)=> (parseInt(a)||0)-(parseInt(b)||0) || String(a).localeCompare(String(b)));
+  sortedTables.forEach(tableNum=>{
+    const orders = tableGroups.get(tableNum);
+    const hasUnpaid = orders.some(o=> !o.paid);
+    if(!showPaidBills && !hasUnpaid) return;
+    root.appendChild(billGroupCard('Маса ' + tableNum, orders));
+    rendered++;
+  });
+
+  noTable.forEach(o=>{
+    if(!showPaidBills && o.paid) return;
+    root.appendChild(billGroupCard('Без маса · #'+o.orderNumber, [o]));
+    rendered++;
+  });
+
+  if(rendered===0){
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = showPaidBills ? 'Нема завршени нарачки.' : 'Нема отворени сметки.';
+    root.appendChild(empty);
+  }
 }
 </script>
 </body>
