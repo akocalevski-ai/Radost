@@ -92,11 +92,16 @@
   .msg{ font-size:12.5px; margin-top:8px; }
   .msg.ok{ color:var(--green); } .msg.bad{ color:var(--red); }
 
-  .inv-row{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:8px; }
-  .inv-row .top{ display:flex; justify-content:space-between; align-items:center; }
+  .inv-row{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:8px; scroll-margin-top:80px; }
+  .inv-row .top{ display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+  .inv-row .top .chev{ display:inline-block; margin-right:8px; color:var(--gray); font-size:11px; transition:transform .15s ease; }
+  .inv-row.open .top .chev{ transform:rotate(90deg); }
   .inv-row .name{ font-weight:700; font-size:14px; }
   .inv-row .qty{ font-family:var(--font-mono); font-weight:700; }
   .inv-row .meta{ font-size:11.5px; color:var(--gray); margin-top:2px; }
+  .inv-row .body{ display:none; }
+  .inv-row.open .body{ display:block; }
+  .inv-row.hidden-filtered{ display:none; }
   .inv-row .add-stock{ display:flex; gap:6px; margin-top:10px; }
   .inv-row .add-stock input{ width:80px; border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px; }
   .inv-row .add-stock button{ background:var(--ink); color:var(--gold-wash); border:none; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; }
@@ -137,7 +142,7 @@
     <button class="active" data-tab="overview">Преглед</button>
     <button data-tab="orders">Нарачки</button>
     <button data-tab="staff">Келнери</button>
-    <button data-tab="inventory">Инвентар</button>
+    <button data-tab="inventory">Магацин</button>
     <button data-tab="menu">Мени</button>
     <button data-tab="schedule">Распоред</button>
     <button data-tab="stats">Статистика</button>
@@ -187,7 +192,7 @@
     <!-- INVENTORY -->
     <section class="panel" id="panel-inventory">
       <div class="card-form">
-        <div class="section-title" style="margin-top:0">Нов артикал во инвентар</div>
+        <div class="section-title" style="margin-top:0">Нов артикл во магацин</div>
         <div class="grid">
           <div><label>Назив</label><input id="invName" placeholder="напр. Скопско 0.33Л"></div>
           <div><label>Единица</label><input id="invUnit" placeholder="боци / л / кг"></div>
@@ -202,10 +207,16 @@
         <button class="btn-primary" id="addInvBtn">Додади артикал</button>
         <div class="msg" id="invMsg"></div>
       </div>
-      <div class="section-title">Тековен инвентар</div>
+      <div class="section-title">Тековен магацин</div>
       <div class="filter-row">
-        <button class="btn-ghost" id="exportInvAll">⬇ Извези цел инвентар (Excel)</button>
+        <button class="btn-ghost" id="exportInvAll">⬇ Извези цел магацин (Excel)</button>
         <button class="btn-ghost" id="exportInvLow">⬇ Извези само мала залиха (Excel)</button>
+      </div>
+      <div class="filter-row">
+        <input id="invSearch" placeholder="🔍 Пребарувај артикли…" style="flex:1; border:1px solid var(--line); border-radius:999px; padding:9px 16px; font-size:13px; background:#fff;">
+        <select id="invJump" style="border:1px solid var(--line); border-radius:999px; padding:9px 14px; font-size:12.5px; background:#fff; max-width:220px;">
+          <option value="">Оди до артикал…</option>
+        </select>
       </div>
       <div id="invList"><div class="empty">Се вчитува…</div></div>
       <div class="section-title">Историја на набавки / продажби</div>
@@ -591,38 +602,67 @@ function exportInventoryExcel(onlyLow){
       'Поврзана ставка': (liveMenuItems.find(m=> m.id===inv.linkedMenuId) || {}).name || ''
     }));
   if(rows.length===0){
-    alert(onlyLow ? 'Нема артикли со мала залиха моментално.' : 'Инвентарот е сè уште празен.');
+    alert(onlyLow ? 'Нема артикли со мала залиха моментално.' : 'Магацинот е сè уште празен.');
     return;
   }
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [{wch:28},{wch:10},{wch:12},{wch:16},{wch:14},{wch:24}];
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Инвентар');
+  XLSX.utils.book_append_sheet(wb, ws, 'Магацин');
   const fname = `radost-inventar${onlyLow ? '-mala-zaliha' : ''}-${localDateStr(new Date())}.xlsx`;
   XLSX.writeFile(wb, fname);
 }
 document.getElementById('exportInvAll').addEventListener('click', ()=> exportInventoryExcel(false));
 document.getElementById('exportInvLow').addEventListener('click', ()=> exportInventoryExcel(true));
 
+let openInvId = null;
+
 function listenInventory(){
   db.collection('inventory').onSnapshot(snap=>{
-    inventoryList = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    const list = document.getElementById('invList');
-    if(snap.empty){ list.innerHTML = '<div class="empty">Сè уште нема артикли во инвентарот.</div>'; return; }
-    list.innerHTML = '';
-    inventoryList.forEach(inv=>{
-      const linked = liveMenuItems.find(m=> m.id===inv.linkedMenuId);
-      const low = inv.qty <= (inv.lowStockThreshold||0);
-      const row = document.createElement('div');
-      row.className = 'inv-row';
-      row.innerHTML = `
-        <div class="top">
-          <div>
-            <div class="name">${esc(inv.name)}</div>
-            <div class="meta">${linked ? 'Поврзано со: '+esc(linked.name)+' · ' : ''}${inv.usagePerOrder||1} по продажба${low ? ' · <span class="low">МАЛА ЗАЛИХА</span>' : ''}</div>
-          </div>
-          <div class="qty ${low?'low':''}">${inv.qty} ${esc(inv.unit||'')}</div>
+    inventoryList = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=> a.name.localeCompare(b.name,'mk'));
+    renderInventoryList();
+    populateInvJump();
+  }, err=> console.error('inventory listener', err));
+}
+
+function populateInvJump(){
+  const sel = document.getElementById('invJump');
+  sel.innerHTML = '<option value="">Оди до артикал…</option>' +
+    inventoryList.map(inv=> `<option value="${inv.id}">${esc(inv.name)}</option>`).join('');
+}
+document.getElementById('invJump').addEventListener('change', function(){
+  if(!this.value) return;
+  openInvId = this.value;
+  renderInventoryList();
+  const el = document.getElementById('inv-'+this.value);
+  if(el) el.scrollIntoView({behavior:'smooth', block:'center'});
+  this.value = '';
+});
+document.getElementById('invSearch').addEventListener('input', renderInventoryList);
+
+function renderInventoryList(){
+  const list = document.getElementById('invList');
+  if(inventoryList.length===0){ list.innerHTML = '<div class="empty">Сè уште нема артикли во магацинот.</div>'; return; }
+  const q = document.getElementById('invSearch').value.trim().toLowerCase();
+  list.innerHTML = '';
+  let anyVisible = false;
+  inventoryList.forEach(inv=>{
+    const matches = !q || inv.name.toLowerCase().includes(q);
+    if(matches) anyVisible = true;
+    const linked = liveMenuItems.find(m=> m.id===inv.linkedMenuId);
+    const low = inv.qty <= (inv.lowStockThreshold||0);
+    const isOpen = openInvId === inv.id;
+    const row = document.createElement('div');
+    row.className = 'inv-row' + (isOpen ? ' open' : '') + (matches ? '' : ' hidden-filtered');
+    row.id = 'inv-'+inv.id;
+    row.innerHTML = `
+      <div class="top">
+        <div><span class="chev">▶</span><span class="name">${esc(inv.name)}</span>
+          <div class="meta" style="margin-left:18px;">${linked ? 'Поврзано со: '+esc(linked.name)+' · ' : ''}${inv.usagePerOrder||1} по продажба${low ? ' · <span class="low">МАЛА ЗАЛИХА</span>' : ''}</div>
         </div>
+        <div class="qty ${low?'low':''}">${inv.qty} ${esc(inv.unit||'')}</div>
+      </div>
+      <div class="body">
         <div class="add-stock">
           <input type="number" step="0.01" placeholder="Кол." id="stock-${inv.id}">
           <input type="text" placeholder="Забелешка (опц.)" id="note-${inv.id}" style="flex:1">
@@ -642,31 +682,44 @@ function listenInventory(){
           </div>
           <button data-act="save" style="margin-top:8px; background:var(--ink); color:var(--gold-wash); border:none; border-radius:999px; padding:9px 16px; font-weight:700; font-size:12.5px;">Зачувај промени</button>
         </div>
-      `;
-      row.querySelector('[data-act="proc"]').addEventListener('click', ()=> addProcurement(inv.id, inv.name));
-      row.querySelector('[data-act="edit"]').addEventListener('click', ()=>{
-        const box = document.getElementById('edit-'+inv.id);
-        box.style.display = box.style.display==='none' ? 'block' : 'none';
-      });
-      row.querySelector('[data-act="del"]').addEventListener('click', async ()=>{
-        if(!confirm(`Избриши "${inv.name}" од инвентарот?`)) return;
-        try{ await db.collection('inventory').doc(inv.id).delete(); }
-        catch(err){ console.error(err); alert('Грешка при бришење.'); }
-      });
-      row.querySelector('[data-act="save"]').addEventListener('click', async ()=>{
-        const name = document.getElementById('e-name-'+inv.id).value.trim();
-        const unit = document.getElementById('e-unit-'+inv.id).value.trim();
-        const qty = parseFloat(document.getElementById('e-qty-'+inv.id).value) || 0;
-        const low = parseFloat(document.getElementById('e-low-'+inv.id).value) || 0;
-        const usage = parseFloat(document.getElementById('e-usage-'+inv.id).value) || 1;
-        if(!name){ alert('Внеси назив.'); return; }
-        try{
-          await db.collection('inventory').doc(inv.id).update({ name, unit, qty, lowStockThreshold: low, usagePerOrder: usage });
-        }catch(err){ console.error(err); alert('Грешка при зачувување.'); }
-      });
-      list.appendChild(row);
+      </div>
+    `;
+    row.querySelector('.top').addEventListener('click', ()=>{
+      openInvId = (openInvId === inv.id) ? null : inv.id;
+      renderInventoryList();
     });
-  }, err=> console.error('inventory listener', err));
+    row.querySelector('[data-act="proc"]').addEventListener('click', (e)=>{ e.stopPropagation(); addProcurement(inv.id, inv.name); });
+    row.querySelector('[data-act="edit"]').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const box = document.getElementById('edit-'+inv.id);
+      box.style.display = box.style.display==='none' ? 'block' : 'none';
+    });
+    row.querySelector('[data-act="del"]').addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      if(!confirm(`Избриши "${inv.name}" од магацинот?`)) return;
+      try{ await db.collection('inventory').doc(inv.id).delete(); }
+      catch(err){ console.error(err); alert('Грешка при бришење.'); }
+    });
+    row.querySelector('[data-act="save"]').addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const name = document.getElementById('e-name-'+inv.id).value.trim();
+      const unit = document.getElementById('e-unit-'+inv.id).value.trim();
+      const qty = parseFloat(document.getElementById('e-qty-'+inv.id).value) || 0;
+      const low = parseFloat(document.getElementById('e-low-'+inv.id).value) || 0;
+      const usage = parseFloat(document.getElementById('e-usage-'+inv.id).value) || 1;
+      if(!name){ alert('Внеси назив.'); return; }
+      try{
+        await db.collection('inventory').doc(inv.id).update({ name, unit, qty, lowStockThreshold: low, usagePerOrder: usage });
+      }catch(err){ console.error(err); alert('Грешка при зачувување.'); }
+    });
+    list.appendChild(row);
+  });
+  if(!anyVisible){
+    const none = document.createElement('div');
+    none.className = 'empty';
+    none.textContent = 'Нема артикли што одговараат на пребарувањето.';
+    list.appendChild(none);
+  }
 }
 
 async function addProcurement(invId, invName){
