@@ -827,6 +827,7 @@ placeBtn.addEventListener('click', async ()=>{
       waiterId: waiter ? waiter.id : null,
       waiterName: waiter ? waiter.name : null,
       status: 'new',
+      paid: false,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     const ref = await db.collection('orders').add(orderData);
