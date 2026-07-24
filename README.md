@@ -82,6 +82,16 @@ The **Статистика** tab in the admin panel shows a leaderboard (orders 
 
 In the **Инвентар** tab, two buttons above the item list export directly to an `.xlsx` file you can open in Excel: **"Извези цел инвентар"** exports every item, **"Извези само мала залиха"** exports only the items currently at or below their low-stock threshold — handy as a shopping list before a supply run.
 
+## Waiter notifications & reminders
+
+`waiter.html` plays a sound and shows an on-screen toast the moment a new order comes in (and a desktop notification too, if the browser is asked for permission — it prompts right when you tap "Најави се"). If an order sits unclaimed, it nags again — the waiter card turns red with an "⏰ Доцни" badge and repeats the sound — after however many minutes you set in the "Потсети по" box at the top (1–10, adjustable any time). The 🔔 button next to it mutes/unmutes sound entirely. This setting lives on that device/browser only, not shared across waiters.
+
+One browser quirk worth knowing: sound can only start after a user has clicked something on the page (a login is enough) — this is a standard browser autoplay rule, not a bug, and the waiter panel already primes it for you at login.
+
+## Bills — paid vs open
+
+Both `waiter.html` and `admin.html` have a **Сметки** tab showing every completed (prepared/delivered) order, grouped by table number — orders without a table (takeaway) are listed individually instead. Each group shows "Платено" (paid) or "Отворено" (open) with a button to flip it — marking a table paid marks every unpaid order on it at once. By default only open tabs show; there's a toggle to also show ones already settled.
+
 ## Deleting staff
 
 The **Избриши** button on a waiter in the **Келнери** tab removes them from the app immediately (they'll be signed out of `waiter.html` on their next action and won't appear in the customer's waiter list or the schedule dropdown). It does **not** delete their Firebase login itself — client apps aren't allowed to delete other users' logins for security reasons. If you want the login gone completely too, go to Firebase console → **Authentication → Users**, find them, and delete them there as well.
