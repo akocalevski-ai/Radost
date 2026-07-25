@@ -74,6 +74,14 @@
 
   main{ max-width:640px; margin:0 auto; padding:16px 18px 60px; }
   .empty{ text-align:center; color:var(--gray); font-size:13.5px; margin-top:60px; line-height:1.6; }
+
+  .day-summary{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px;
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-sm); padding:14px; margin-bottom:16px;
+  }
+  .ds-lbl{ font-size:11px; color:var(--gray); font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
+  .ds-val{ font-family:var(--font-display); font-weight:900; font-size:20px; margin-top:3px; }
   .filter-row{ display:flex; align-items:center; gap:8px; margin-bottom:14px; }
   .btn-week{ background:var(--card); border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-size:12px; font-weight:700; color:var(--ink-soft); }
 
@@ -189,8 +197,8 @@
   </div>
   <nav class="tabs">
     <button class="active" data-tab="queue">Отворени нарачки</button>
-    <button data-tab="done">Завршени денес</button>
     <button data-tab="bills">Сметки</button>
+    <button data-tab="done">Завршени денес</button>
     <button data-tab="schedule">Распоред</button>
   </nav>
   <main id="mainRoot"></main>
@@ -388,7 +396,7 @@ function computeBillsOrders(){
 function computeDoneToday(){
   const start = new Date(); start.setHours(0,0,0,0);
   return recentOrders
-    .filter(o=> o.status==='completed' && o.paid && o.completedAt && ts(o.completedAt) >= start)
+    .filter(o=> o.status==='completed' && o.paid && o.waiterId===myUid && o.completedAt && ts(o.completedAt) >= start)
     .sort((a,b)=> ts(b.completedAt) - ts(a.completedAt));
 }
 
@@ -417,8 +425,21 @@ function render(){
     all.forEach(o=> root.appendChild(renderCard(o)));
   } else if(activeTab==='done'){
     const doneList = computeDoneToday();
+    const revenue = doneList.reduce((s,o)=> s+(o.grandTotal||o.total), 0);
+    const tips = doneList.reduce((s,o)=> s+(o.tip||0), 0);
+    const summary = document.createElement('div');
+    summary.className = 'day-summary';
+    summary.innerHTML = `
+      <div class="ds-item"><div class="ds-lbl">Наплатени нарачки</div><div class="ds-val">${doneList.length}</div></div>
+      <div class="ds-item"><div class="ds-lbl">Промет денес</div><div class="ds-val">${revenue} ден</div></div>
+      ${tips>0 ? `<div class="ds-item"><div class="ds-lbl">Бакшиш</div><div class="ds-val">${tips} ден</div></div>` : ''}
+    `;
+    root.appendChild(summary);
     if(doneList.length===0){
-      root.innerHTML = '<div class="empty">Сè уште нема наплатени нарачки денес.<br>Нарачките се појавуваат тука откако ќе бидат наплатени во „Сметки".</div>';
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = 'Сè уште нема наплатени нарачки денес.<br>Нарачките се појавуваат тука откако ќе бидат наплатени во „Сметки".';
+      root.appendChild(empty);
       return;
     }
     doneList.forEach(o=> root.appendChild(renderCard(o, true)));
