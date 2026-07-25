@@ -98,6 +98,19 @@
     letter-spacing:0.18em; text-transform:uppercase; color: var(--gray);
     margin-top:6px;
   }
+  .lang-switch{
+    position:absolute; top: calc(20px + env(safe-area-inset-top)); right:18px;
+    display:inline-flex; background:var(--card); border:1px solid var(--line); border-radius:999px;
+    padding:3px; gap:2px; box-shadow:var(--shadow-sm);
+  }
+  .lang-switch .ls-opt{
+    padding:5px 10px; border-radius:999px; font-size:11px; font-weight:800; color:var(--gray);
+    transition:background .15s ease, color .15s ease;
+  }
+  .lang-switch .ls-opt.active{ background:var(--ink); color:var(--gold-wash); }
+  @media (max-width:380px){
+    .lang-switch{ right:12px; top:calc(16px + env(safe-area-inset-top)); }
+  }
 
   .order-meta{
     max-width:640px; margin: 18px auto 4px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
@@ -377,18 +390,21 @@
 
 <header class="top" id="topHeader">
   <div class="logo">ra<span class="hl">do</span>st<sup>TM</sup></div>
-  <div class="tagline">.. во секоја голтка !</div>
+  <div class="tagline" id="tagline">.. во секоја голтка !</div>
+  <button class="lang-switch" id="langSwitch" aria-label="Switch language">
+    <span class="ls-opt active" data-lang="mk">MK</span><span class="ls-opt" data-lang="en">EN</span>
+  </button>
   <div class="order-meta">
     <div class="seg" id="orderTypeSeg">
       <button class="active" data-type="table">Маса</button>
       <button data-type="takeaway">За понесување</button>
     </div>
     <div class="table-input" id="tableWrap">
-      <label for="tableNum">Бр.</label>
+      <label for="tableNum" id="tableNumLabel">Бр.</label>
       <input id="tableNum" type="text" inputmode="numeric" maxlength="3" placeholder="—">
     </div>
     <div class="table-input" id="waiterWrap">
-      <label for="waiterSel">Келнер</label>
+      <label for="waiterSel" id="waiterLabelEl">Келнер</label>
       <select id="waiterSel"><option value="">— било кој —</option></select>
     </div>
   </div>
@@ -408,30 +424,30 @@
 <div class="overlay" id="overlay"></div>
 <aside class="drawer" id="drawer" aria-label="Твојата нарачка">
   <div class="drawer-head">
-    <h2>Твојата нарачка</h2>
+    <h2 id="drawerTitle">Твојата нарачка</h2>
     <button id="closeDrawer" aria-label="Затвори">✕</button>
   </div>
   <div class="drawer-body" id="drawerBody"></div>
   <div class="drawer-foot">
     <div class="tip-block">
-      <div class="tip-label">Бакшиш</div>
+      <div class="tip-label" id="tipLabelEl">Бакшиш</div>
       <div class="tip-options" id="tipOptions">
-        <button data-pct="0" class="active">Без</button>
+        <button data-pct="0" class="active" id="tipNoneBtn">Без</button>
         <button data-pct="5">5%</button>
         <button data-pct="10">10%</button>
         <button data-pct="15">15%</button>
       </div>
       <input type="number" id="tipCustom" placeholder="или внеси износ во ден" min="0" step="1">
     </div>
-    <div class="total-row" id="tipRow" style="display:none;"><span>Бакшиш</span><span class="amt" id="tipAmt">0 ден</span></div>
-    <div class="total-row"><span>Вкупно</span><span class="amt" id="totalAmt">0 ден</span></div>
+    <div class="total-row" id="tipRow" style="display:none;"><span id="tipRowLabel">Бакшиш</span><span class="amt" id="tipAmt">0 ден</span></div>
+    <div class="total-row"><span id="totalRowLabel">Вкупно</span><span class="amt" id="totalAmt">0 ден</span></div>
     <button class="place-btn" id="placeBtn">Нарачај</button>
   </div>
 </aside>
 
 <div class="confirm" id="confirm">
-  <div class="stamp"><small>НАРАЧКА</small><b id="orderNo">#000</b></div>
-  <h2>Ви благодариме!</h2>
+  <div class="stamp"><small id="orderStampLabel">НАРАЧКА</small><b id="orderNo">#000</b></div>
+  <h2 id="thanksH2">Ви благодариме!</h2>
   <p id="confirmDetail">Нарачката е испратена до шанкот.</p>
   <button class="receipt-btn" id="printReceiptBtn">Испечати сметка</button>
   <button class="new-order" id="newOrderBtn">Нова нарачка</button>
@@ -439,7 +455,7 @@
 
 <div class="print-receipt" id="printReceipt"></div>
 
-<a class="staff-link" href="waiter.html">Персонал</a>
+<a class="staff-link" href="waiter.html" id="staffLinkText">Персонал</a>
 
 <script>
 /* ============================================================
@@ -540,6 +556,91 @@ const DEFAULT_MENU = [
   { id:'aleksandrija',tab:'ВИНО', section:'ВИНО', name:'Александрија', price:180 },
 ];
 
+/* ============================================================
+   ENGLISH TRANSLATIONS — best-effort static dictionary for the
+   default catalog above. Items added or renamed later from the
+   admin panel (or custom categories) have no English entry here,
+   so they simply display in their original Macedonian text when
+   EN is selected — that's an accepted limitation of this simple
+   client-side toggle, not a bug.
+   ============================================================ */
+const EN_TABS = { 'КАФЕ':'COFFEE', 'СОКОВИ':'DRINKS', 'ПИВО':'BEER', 'ЖЕСТОКО':'SPIRITS', 'ВИНО':'WINE' };
+const EN_SECTIONS = {
+  'КАФЕ И ЧАЈ':'COFFEE & TEA',
+  'БЕЗАЛКОХОЛНИ ПИЈАЛОЦИ':'SOFT DRINKS',
+  'ПИВО':'BEER',
+  'АЛКОХОЛНИ ПИЈАЛОЦИ':'SPIRITS',
+  'ВИНО':'WINE'
+};
+const EN_ITEMS = {
+  esp:{name:'Espresso'}, macm:{name:'Macchiato Small'}, macg:{name:'Macchiato Large'},
+  nes:{name:'Nescafé'}, cap:{name:'Cappuccino'}, kakao:{name:'Hot Chocolate'},
+  turk:{name:'Turkish Coffee'}, fredo:{name:'Iced Espresso (Freddo)'}, caj:{name:'Tea'},
+  ladenm:{name:'Iced Tea Belgrade · Small'}, ladeng:{name:'Iced Tea Belgrade · Large'},
+  kokakola:{name:'Coca-Cola'}, kokazero:{name:'Coca-Cola Zero'}, fanta:{name:'Fanta'},
+  sveps:{name:'Schweppes', desc:'lemon · zero · tonic · zero tonic · pink grapefruit · tangerine'},
+  sprajt:{name:'Sprite'}, nekst:{name:'Next', desc:'orange · peach · apple · cocktail'},
+  fuze:{name:'Fuze Iced Tea'}, rosa:{name:'Rosa Water', desc:'still · sparkling'},
+  cedenlimon:{name:'Fresh Lemon Juice'}, cedenport:{name:'Fresh Orange Juice'},
+  cedevita:{name:'Cedevita'}, redbul:{name:'Red Bull'},
+  skopsko:{name:'Skopsko'}, skopskosmut:{name:'Skopsko Smooth'},
+  skopskosmut33t:{name:'Skopsko Smooth · Draft'}, skopskosmut50t:{name:'Skopsko Smooth · Draft'},
+  hajneken25:{name:'Heineken'}, hajnekenzero:{name:'Heineken 0%'}, ginis:{name:'Guinness'},
+  skopskoweiss:{name:'Skopsko Weiss'}, moretti:{name:'Birra Moretti'}, amstel:{name:'Amstel'},
+  konjak:{name:'Cognac'}, jeger:{name:'Jägermeister'}, martini:{name:'Martini'},
+  uzo:{name:'Ouzo'}, mastika:{name:'Mastika'}, vinjak:{name:'Vinjak Brandy'},
+  rakijazolta:{name:'Rakija (Aged)'}, pelinkovac:{name:'Pelinkovac'}, tekila:{name:'Tequila'},
+  stok:{name:'Stock Brandy'}, kampari:{name:'Campari'}, aperolspric:{name:'Aperol Spritz'},
+  rumcaptain:{name:'Captain Morgan Rum'}, rumbadel:{name:'Badel Rum'}, bakardi:{name:'Bacardi Rum'},
+  smirnoff:{name:'Smirnoff Vodka'}, absolut:{name:'Absolut Vodka'}, greygoose:{name:'Grey Goose Vodka'},
+  gordons:{name:"Gordon's Gin"}, gordonspink:{name:"Gordon's Pink Gin"},
+  bifiterdzin:{name:'Beefeater Gin'}, bifiterpink:{name:'Beefeater Pink Gin'},
+  hendricks:{name:"Hendrick's Gin"}, bombaj:{name:'Bombay Sapphire Gin'},
+  dzejmison:{name:'Jameson'}, jb:{name:'J&B'}, dzekdaniels:{name:"Jack Daniel's"},
+  jwred:{name:'Johnnie Walker Red'}, jwblack:{name:'Johnnie Walker Black'},
+  monkeyshoulder:{name:'Monkey Shoulder'}, chivas:{name:'Chivas Regal'},
+  tgazajug:{name:"T'ga za Jug"}, aleksandrija:{name:'Aleksandrija'}
+};
+
+const UI = {
+  mk: {
+    tagline:'.. во секоја голтка !', table:'Маса', takeaway:'За понесување',
+    tableNumLabel:'Бр.', waiterLabel:'Келнер', anyWaiter:'— било кој —',
+    cartTitle:'Твојата нарачка', close:'Затвори',
+    tipLabel:'Бакшиш', tipNone:'Без', tipCustomPlaceholder:'или внеси износ во ден',
+    tipRowLabel:'Бакшиш', totalLabel:'Вкупно', placeBtn:'Нарачај', placing:'Се испраќа...',
+    cartFabLabel:'Нарачка', orderStamp:'НАРАЧКА', thanks:'Ви благодариме!',
+    printReceiptBtn:'Испечати сметка', newOrderBtn:'Нова нарачка', staffLink:'Персонал',
+    addToCartAria:'Додади во нарачка', minusAria:'Одземи', plusAria:'Додади',
+    emptyCart:'Нарачката е празна.<br>Допри „+" на нешто што ти се допаѓа.',
+    notePlaceholder:'Забелешка за шанкот (алергии, без шеќер...)',
+    errorSubmit:'Настана грешка при испраќање на нарачката. Провери интернет конекција и обиди се повторно.',
+    confirmTable:(table,waiter)=> `Маса ${table}${waiter ? ' — ' + waiter : ''} — веднаш ти носиме.`,
+    confirmTakeaway:'За понесување — ќе те повикаме кога ќе биде готово.'
+  },
+  en: {
+    tagline:'.. in every sip !', table:'Table', takeaway:'Takeaway',
+    tableNumLabel:'No.', waiterLabel:'Waiter', anyWaiter:'— any —',
+    cartTitle:'Your order', close:'Close',
+    tipLabel:'Tip', tipNone:'None', tipCustomPlaceholder:'or enter an amount in ден',
+    tipRowLabel:'Tip', totalLabel:'Total', placeBtn:'Order', placing:'Sending...',
+    cartFabLabel:'Order', orderStamp:'ORDER', thanks:'Thank you!',
+    printReceiptBtn:'Print receipt', newOrderBtn:'New order', staffLink:'Staff',
+    addToCartAria:'Add to order', minusAria:'Decrease', plusAria:'Increase',
+    emptyCart:'Your order is empty.<br>Tap "+" on something you like.',
+    notePlaceholder:'Note for the bar (allergies, no sugar...)',
+    errorSubmit:'Something went wrong sending your order. Check your connection and try again.',
+    confirmTable:(table,waiter)=> `Table ${table}${waiter ? ' — ' + waiter : ''} — bringing it right over.`,
+    confirmTakeaway:"Takeaway — we'll call you when it's ready."
+  }
+};
+let LANG = localStorage.getItem('radost_lang') || 'mk';
+function t(key){ return UI[LANG][key]; }
+function trTab(tab){ return LANG==='en' ? (EN_TABS[tab] || tab) : tab; }
+function trSection(section){ return LANG==='en' ? (EN_SECTIONS[section] || section) : section; }
+function trName(item){ return LANG==='en' ? ((EN_ITEMS[item.id]||{}).name || item.name) : item.name; }
+function trDesc(item){ return LANG==='en' ? ((EN_ITEMS[item.id]||{}).desc || item.desc) : item.desc; }
+
 /* ---------------- state ---------------- */
 let MENU = DEFAULT_MENU;
 function computeTabs(){
@@ -596,7 +697,7 @@ function renderWaiterOptions(){
   // (so the dropdown isn't empty before the admin ever builds a schedule).
   const filtered = scheduleHasDoc ? waiters.filter(w=> isWorkingNow(scheduleDoc, w.id)) : waiters;
   const prev = selectedWaiterId;
-  waiterSel.innerHTML = '<option value="">— било кој —</option>' +
+  waiterSel.innerHTML = `<option value="">${t('anyWaiter')}</option>` +
     filtered.map(w=>`<option value="${w.id}">${w.name}</option>`).join('');
   waiterSel.value = filtered.some(w=>w.id===prev) ? prev : '';
   if(waiterSel.value !== prev) selectedWaiterId = waiterSel.value;
@@ -671,7 +772,7 @@ function renderTabs(){
   TABS.forEach(tab=>{
     const b = document.createElement('button');
     b.className = 'cat-btn' + (tab===activeTab ? ' active' : '');
-    b.innerHTML = `<svg viewBox="0 0 20 20">${ICONS[tab] || ''}</svg><span>${tab}</span>`;
+    b.innerHTML = `<svg viewBox="0 0 20 20">${ICONS[tab] || ''}</svg><span>${trTab(tab)}</span>`;
     b.addEventListener('click', ()=>{ activeTab = tab; renderTabs(); renderMenu(); });
     catInner.appendChild(b);
   });
@@ -685,7 +786,7 @@ function renderMenu(){
   sections.forEach(section=>{
     const heading = document.createElement('h3');
     heading.className = 'cat-heading';
-    heading.textContent = section;
+    heading.textContent = trSection(section);
     menuRoot.appendChild(heading);
 
     const card = document.createElement('div');
@@ -700,14 +801,15 @@ function renderMenu(){
 function renderItem(item){
   const row = document.createElement('div');
   row.className = 'row';
+  const desc = trDesc(item);
   row.innerHTML = `
     <div class="left">
       <div class="name-line">
-        <span class="name">${item.name}</span>
+        <span class="name">${trName(item)}</span>
         ${item.vol ? `<span class="vol">${item.vol}</span>` : ''}
         ${item.mark ? '<span class="mark">✦</span>' : ''}
       </div>
-      ${item.desc ? `<div class="desc">${item.desc}</div>` : ''}
+      ${desc ? `<div class="desc">${desc}</div>` : ''}
     </div>
     <div class="right">
       <span class="price">${item.price}<small> ден</small></span>
@@ -723,14 +825,14 @@ function renderQtyControl(slot, id){
   if(qty === 0){
     const btn = document.createElement('button');
     btn.className = 'add-btn';
-    btn.setAttribute('aria-label','Додади во нарачка');
+    btn.setAttribute('aria-label', t('addToCartAria'));
     btn.textContent = '+';
     btn.addEventListener('click', ()=> changeQty(id, 1));
     slot.appendChild(btn);
   } else {
     const wrap = document.createElement('div');
     wrap.className = 'stepper';
-    wrap.innerHTML = `<button aria-label="Одземи">−</button><span>${qty}</span><button aria-label="Додади">+</button>`;
+    wrap.innerHTML = `<button aria-label="${t('minusAria')}">−</button><span>${qty}</span><button aria-label="${t('plusAria')}">+</button>`;
     wrap.children[0].addEventListener('click', ()=> changeQty(id,-1));
     wrap.children[2].addEventListener('click', ()=> changeQty(id, 1));
     slot.appendChild(wrap);
@@ -833,7 +935,7 @@ function updateCartUI(){
 
   drawerBody.innerHTML = '';
   if(items.length===0){
-    drawerBody.innerHTML = '<div class="empty-note">Нарачката е празна.<br>Допри „+“ на нешто што ти се допаѓа.</div>';
+    drawerBody.innerHTML = `<div class="empty-note">${t('emptyCart')}</div>`;
     return;
   }
   items.forEach(item=>{
@@ -841,11 +943,11 @@ function updateCartUI(){
     line.className = 'cart-line';
     line.innerHTML = `
       <div class="info">
-        <div class="n">${item.name}${item.vol ? ' · ' + item.vol : ''}</div>
+        <div class="n">${trName(item)}${item.vol ? ' · ' + item.vol : ''}</div>
         <div class="p">${item.price} ден × ${item.qty} = ${item.price*item.qty} ден</div>
       </div>
       <div class="stepper">
-        <button aria-label="Одземи">−</button><span>${item.qty}</span><button aria-label="Додади">+</button>
+        <button aria-label="${t('minusAria')}">−</button><span>${item.qty}</span><button aria-label="${t('plusAria')}">+</button>
       </div>`;
     line.querySelector('.stepper').children[0].addEventListener('click', ()=> changeQty(item.id,-1));
     line.querySelector('.stepper').children[2].addEventListener('click', ()=> changeQty(item.id, 1));
@@ -853,7 +955,7 @@ function updateCartUI(){
   });
   const note = document.createElement('textarea');
   note.className = 'note';
-  note.placeholder = 'Забелешка за шанкот (алергии, без шеќер...)';
+  note.placeholder = t('notePlaceholder');
   note.value = localStorage.getItem('radost_note') || '';
   note.addEventListener('input', ()=> localStorage.setItem('radost_note', note.value));
   drawerBody.appendChild(note);
@@ -874,7 +976,7 @@ placeBtn.addEventListener('click', async ()=>{
   if(placeBtn.disabled) return;
   placeBtn.disabled = true;
   const originalLabel = placeBtn.textContent;
-  placeBtn.textContent = 'Се испраќа...';
+  placeBtn.textContent = t('placing');
 
   const items = itemsInCart().map(i=>({ id:i.id, name:i.name, vol:i.vol||null, price:i.price, qty:i.qty }));
   const note = localStorage.getItem('radost_note') || '';
@@ -903,8 +1005,8 @@ placeBtn.addEventListener('click', async ()=>{
 
     orderNoEl.textContent = '#' + orderNumber;
     confirmDetail.textContent = orderType === 'table'
-      ? `Маса ${tableNumber}${waiter ? ' — ' + waiter.name : ''} — веднаш ти носиме.`
-      : `За понесување — ќе те повикаме кога ќе биде готово.`;
+      ? t('confirmTable')(tableNumber, waiter ? waiter.name : '')
+      : t('confirmTakeaway');
 
     cart = {};
     saveCart();
@@ -915,7 +1017,7 @@ placeBtn.addEventListener('click', async ()=>{
     document.querySelectorAll('.qty-slot').forEach(slot=> renderQtyControl(slot, slot.dataset.id));
   }catch(err){
     console.error('order submit failed', err);
-    alert('Настана грешка при испраќање на нарачката. Провери интернет конекција и обиди се повторно.');
+    alert(t('errorSubmit'));
   }finally{
     placeBtn.disabled = false;
     placeBtn.textContent = originalLabel;
@@ -930,28 +1032,64 @@ document.getElementById('newOrderBtn').addEventListener('click', ()=>{
 document.getElementById('printReceiptBtn').addEventListener('click', ()=>{
   if(!lastOrder) return;
   const el = document.getElementById('printReceipt');
-  const time = new Date().toLocaleString('mk-MK');
+  const time = new Date().toLocaleString(LANG==='en' ? 'en-GB' : 'mk-MK');
+  const L = LANG==='en'
+    ? { order:'Order', table:'Table', takeaway:'Takeaway', waiter:'Waiter', time:'Time', subtotal:'Subtotal', tip:'Tip', total:'Total', note:'Note' }
+    : { order:'Нарачка', table:'Маса', takeaway:'Понеси', waiter:'Келнер', time:'Време', subtotal:'Меѓузбир', tip:'Бакшиш', total:'Вкупно', note:'Забелешка' };
   el.innerHTML = `
     <h3>radost</h3>
-    <div class="r-line"><span>Нарачка</span><b>#${lastOrder.orderNumber}</b></div>
-    <div class="r-line"><span>${lastOrder.type==='table' ? 'Маса' : 'Понеси'}</span><span>${lastOrder.type==='table' ? (lastOrder.table||'—') : ''}</span></div>
-    ${lastOrder.waiterName ? `<div class="r-line"><span>Келнер</span><span>${lastOrder.waiterName}</span></div>` : ''}
-    <div class="r-line"><span>Време</span><span>${time}</span></div>
+    <div class="r-line"><span>${L.order}</span><b>#${lastOrder.orderNumber}</b></div>
+    <div class="r-line"><span>${lastOrder.type==='table' ? L.table : L.takeaway}</span><span>${lastOrder.type==='table' ? (lastOrder.table||'—') : ''}</span></div>
+    ${lastOrder.waiterName ? `<div class="r-line"><span>${L.waiter}</span><span>${lastOrder.waiterName}</span></div>` : ''}
+    <div class="r-line"><span>${L.time}</span><span>${time}</span></div>
     <hr>
     ${lastOrder.items.map(i=>`<div class="r-line"><span>${i.qty}× ${i.name}${i.vol?' ('+i.vol+')':''}</span><span>${i.price*i.qty} ден</span></div>`).join('')}
     <hr>
-    <div class="r-line"><span>Меѓузбир</span><span>${lastOrder.total} ден</span></div>
-    ${lastOrder.tip ? `<div class="r-line"><span>Бакшиш</span><span>${lastOrder.tip} ден</span></div>` : ''}
-    <div class="r-line"><b>Вкупно</b><b>${lastOrder.grandTotal || lastOrder.total} ден</b></div>
-    ${lastOrder.note ? `<div class="r-line"><span>Забелешка</span><span>${lastOrder.note}</span></div>` : ''}
+    <div class="r-line"><span>${L.subtotal}</span><span>${lastOrder.total} ден</span></div>
+    ${lastOrder.tip ? `<div class="r-line"><span>${L.tip}</span><span>${lastOrder.tip} ден</span></div>` : ''}
+    <div class="r-line"><b>${L.total}</b><b>${lastOrder.grandTotal || lastOrder.total} ден</b></div>
+    ${lastOrder.note ? `<div class="r-line"><span>${L.note}</span><span>${lastOrder.note}</span></div>` : ''}
   `;
   window.print();
 });
 
+/* ---------------- language switch ---------------- */
+function applyLanguage(){
+  document.documentElement.lang = LANG;
+  document.getElementById('tagline').textContent = t('tagline');
+  document.querySelectorAll('.lang-switch .ls-opt').forEach(el=> el.classList.toggle('active', el.dataset.lang===LANG));
+  seg.children[0].textContent = t('table');
+  seg.children[1].textContent = t('takeaway');
+  document.getElementById('tableNumLabel').textContent = t('tableNumLabel');
+  document.getElementById('waiterLabelEl').textContent = t('waiterLabel');
+  document.getElementById('drawerTitle').textContent = t('cartTitle');
+  document.getElementById('closeDrawer').setAttribute('aria-label', t('close'));
+  document.getElementById('tipLabelEl').textContent = t('tipLabel');
+  document.getElementById('tipNoneBtn').textContent = t('tipNone');
+  document.getElementById('tipCustom').placeholder = t('tipCustomPlaceholder');
+  document.getElementById('tipRowLabel').textContent = t('tipRowLabel');
+  document.getElementById('totalRowLabel').textContent = t('totalLabel');
+  const isSubmitting = placeBtn.textContent===UI.mk.placing || placeBtn.textContent===UI.en.placing;
+  if(!isSubmitting) placeBtn.textContent = t('placeBtn');
+  document.getElementById('cartFabLabel').textContent = t('cartFabLabel');
+  document.getElementById('orderStampLabel').textContent = t('orderStamp');
+  document.getElementById('thanksH2').textContent = t('thanks');
+  document.getElementById('printReceiptBtn').textContent = t('printReceiptBtn');
+  document.getElementById('newOrderBtn').textContent = t('newOrderBtn');
+  document.getElementById('staffLinkText').textContent = t('staffLink');
+  renderWaiterOptions();
+  renderTabs();
+  renderMenu();
+  updateCartUI();
+}
+document.getElementById('langSwitch').addEventListener('click', ()=>{
+  LANG = LANG==='mk' ? 'en' : 'mk';
+  localStorage.setItem('radost_lang', LANG);
+  applyLanguage();
+});
+
 setOrderType(orderType);
-renderTabs();
-renderMenu();
-updateCartUI();
+applyLanguage();
 </script>
 </body>
 </html>
