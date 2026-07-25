@@ -188,7 +188,7 @@
     </div>
   </div>
   <nav class="tabs">
-    <button class="active" data-tab="queue">На ред</button>
+    <button class="active" data-tab="queue">Отворени нарачки</button>
     <button data-tab="done">Завршени денес</button>
     <button data-tab="bills">Сметки</button>
     <button data-tab="schedule">Распоред</button>
@@ -210,8 +210,7 @@ const passInp = document.getElementById('pass');
 let myUid = null, myName = '', myRole = '';
 let activeTab = 'queue';
 let openMap = new Map();       // every order that's not completed yet, from any waiter
-let doneList = [];             // completed today, by me
-let billsOrders = [];          // completed orders (any waiter), used by the Сметки tab
+let recentOrders = [];         // last ~300 orders regardless of status, live — backs Сметки and Завршени денес
 
 /* ---------------- notifications ---------------- */
 let soundOn = localStorage.getItem('radost_sound_on') !== 'off';
@@ -373,33 +372,30 @@ function startListeners(){
       render();
     }, err=> console.error('open orders listener', err));
 
-  db.collection('orders').where('status','==','completed').orderBy('completedAt','desc').limit(200)
+  // A single query ordered only by createdAt (no extra `where` combined with a different
+  // orderBy field) avoids needing a manual Firestore composite index — status/paid/date
+  // are all filtered client-side below. This backs both Сметки and Завршени денес.
+  db.collection('orders').orderBy('createdAt','desc').limit(300)
     .onSnapshot(snap=>{
-      billsOrders = snap.docs.map(d=>({id:d.id, ...d.data()}));
-      if(activeTab==='bills') render();
-    }, err=> console.error('bills listener', err));
-
-  loadDoneToday();
+      recentOrders = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      if(activeTab==='bills' || activeTab==='done') render();
+    }, err=> console.error('recent orders listener', err));
 }
 
-async function loadDoneToday(){
+function computeBillsOrders(){
+  return recentOrders.filter(o=> o.status==='completed');
+}
+function computeDoneToday(){
   const start = new Date(); start.setHours(0,0,0,0);
-  const snap = await db.collection('orders')
-    .where('waiterId','==', myUid)
-    .where('status','==','completed')
-    .get();
-  doneList = snap.docs
-    .map(d=>({id:d.id, ...d.data()}))
-    .filter(o=> o.completedAt && o.completedAt.toDate() >= start)
-    .sort((a,b)=> b.completedAt.toDate() - a.completedAt.toDate());
-  if(activeTab==='done') render();
+  return recentOrders
+    .filter(o=> o.status==='completed' && o.paid && o.completedAt && ts(o.completedAt) >= start)
+    .sort((a,b)=> ts(b.completedAt) - ts(a.completedAt));
 }
 
 document.querySelectorAll('nav.tabs button').forEach(b=>{
   b.addEventListener('click', ()=>{
     activeTab = b.dataset.tab;
     document.querySelectorAll('nav.tabs button').forEach(x=> x.classList.toggle('active', x===b));
-    if(activeTab==='done') loadDoneToday();
     if(activeTab==='schedule') listenSchedule();
     render();
   });
@@ -420,8 +416,9 @@ function render(){
     }
     all.forEach(o=> root.appendChild(renderCard(o)));
   } else if(activeTab==='done'){
+    const doneList = computeDoneToday();
     if(doneList.length===0){
-      root.innerHTML = '<div class="empty">Сè уште немаш завршено нарачки денес.</div>';
+      root.innerHTML = '<div class="empty">Сè уште нема наплатени нарачки денес.<br>Нарачките се појавуваат тука откако ќе бидат наплатени во „Сметки".</div>';
       return;
     }
     doneList.forEach(o=> root.appendChild(renderCard(o, true)));
@@ -495,7 +492,6 @@ async function completeOrder(o){
       completedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     deductInventoryForOrder(o).catch(err=> console.error('inventory deduction failed', err));
-    loadDoneToday();
   }catch(err){ console.error(err); alert('Не успеа да се заврши нарачката.'); }
 }
 
@@ -674,7 +670,7 @@ function billGroupCard(title, orders){
   const btn = document.createElement('button');
   btn.className = 'pay-btn ' + (allPaid ? 'mark-open' : 'mark-paid');
   btn.style.flex = '1';
-  btn.textContent = allPaid ? 'Означи како отворено' : 'Означи како платено';
+  btn.textContent = allPaid ? 'Врати во отворени' : 'Наплати';
   btn.addEventListener('click', async ()=>{
     btn.disabled = true;
     if(allPaid){
@@ -698,6 +694,7 @@ function renderBillsTab(root){
 
   const tableGroups = new Map();
   const noTable = [];
+  const billsOrders = computeBillsOrders();
   billsOrders.forEach(o=>{
     if(o.type==='table' && o.table){
       if(!tableGroups.has(o.table)) tableGroups.set(o.table, []);
