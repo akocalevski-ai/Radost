@@ -141,11 +141,11 @@
   <nav class="tabs">
     <button class="active" data-tab="overview">Преглед</button>
     <button data-tab="orders">Нарачки</button>
-    <button data-tab="staff">Келнери</button>
-    <button data-tab="inventory">Магацин</button>
-    <button data-tab="menu">Мени</button>
     <button data-tab="schedule">Распоред</button>
     <button data-tab="stats">Статистика</button>
+    <button data-tab="staff">Келнери</button>
+    <button data-tab="menu">Мени</button>
+    <button data-tab="inventory">Магацин</button>
   </nav>
 
   <main>
@@ -260,10 +260,11 @@
         <button class="btn-ghost" id="statsWeekNext">Следна ›</button>
       </div>
       <div id="empWinnerCard"></div>
+      <div id="empTipCard"></div>
       <div class="section-title">Рангирање за оваа недела</div>
-      <table><thead><tr><th>Келнер</th><th>Нарачки</th><th>Промет</th></tr></thead><tbody id="statsLeaderboardBody"><tr><td colspan="3">Се вчитува…</td></tr></tbody></table>
+      <table><thead><tr><th>Келнер</th><th>Нарачки</th><th>Промет</th><th>Бакшиш</th></tr></thead><tbody id="statsLeaderboardBody"><tr><td colspan="4">Се вчитува…</td></tr></tbody></table>
       <div class="section-title">Историја — вработен на неделата</div>
-      <table><thead><tr><th>Недела</th><th>Вработен</th><th>Нарачки</th><th>Промет</th></tr></thead><tbody id="empHistoryBody"><tr><td colspan="4">Се вчитува…</td></tr></tbody></table>
+      <table><thead><tr><th>Недела</th><th>Вработен</th><th>Нарачки</th><th>Промет</th><th>Најголем бакшиш</th></tr></thead><tbody id="empHistoryBody"><tr><td colspan="5">Се вчитува…</td></tr></tbody></table>
     </section>
   </main>
 </div>
@@ -1022,20 +1023,27 @@ function computeWeekStats(weekStart){
   );
   const tally = new Map();
   weekOrders.forEach(o=>{
-    const cur = tally.get(o.waiterId) || { name: o.waiterName || 'Непознато', orders:0, revenue:0 };
+    const cur = tally.get(o.waiterId) || { name: o.waiterName || 'Непознато', orders:0, revenue:0, tips:0 };
     cur.orders += 1;
     cur.revenue += (o.grandTotal || o.total);
+    cur.tips += (o.tip || 0);
     tally.set(o.waiterId, cur);
   });
-  return [...tally.entries()].map(([id,v])=>({ id, ...v })).sort((a,b)=> b.revenue - a.revenue);
+  const rows = [...tally.entries()].map(([id,v])=>({ id, ...v }));
+  return {
+    byRevenue: rows.slice().sort((a,b)=> b.revenue - a.revenue),
+    byTips: rows.filter(r=> r.tips>0).sort((a,b)=> b.tips - a.tips)
+  };
 }
 
-async function saveWeekWinner(weekId, weekLabel, leaderboard){
-  if(!leaderboard.length) return;
-  const top = leaderboard[0];
+async function saveWeekWinner(weekId, weekLabel, byRevenue, byTips){
+  if(!byRevenue.length) return;
+  const top = byRevenue[0];
+  const topTip = byTips[0] || null;
   try{
     await db.collection('employeeOfWeek').doc(weekId).set({
       waiterId: top.id, waiterName: top.name, orders: top.orders, revenue: top.revenue,
+      topTipWaiterName: topTip ? topTip.name : null, topTipAmount: topTip ? topTip.tips : 0,
       weekLabel, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   }catch(err){ console.error('save week winner failed', err); }
@@ -1047,7 +1055,7 @@ function renderStatsTab(){
   const weekLabel = fmtShortDate(statsWeekStart) + ' — ' + fmtShortDate(new Date(statsWeekStart.getTime()+6*86400000));
   labelEl.textContent = weekLabel;
 
-  const leaderboard = computeWeekStats(statsWeekStart);
+  const { byRevenue: leaderboard, byTips } = computeWeekStats(statsWeekStart);
 
   const winnerEl = document.getElementById('empWinnerCard');
   if(leaderboard.length===0){
@@ -1055,19 +1063,31 @@ function renderStatsTab(){
   } else {
     const top = leaderboard[0];
     winnerEl.innerHTML = `
-      <div class="stat" style="background:linear-gradient(135deg, var(--gold-wash), var(--card)); border-color:var(--gold-dark); margin-bottom:20px;">
+      <div class="stat" style="background:linear-gradient(135deg, var(--gold-wash), var(--card)); border-color:var(--gold-dark); margin-bottom:12px;">
         <div class="lbl">🏆 Вработен на неделата</div>
         <div class="val">${esc(top.name)}</div>
         <div style="font-size:12.5px; color:var(--ink-soft); margin-top:4px;">${top.orders} нарачки · ${top.revenue} ден промет</div>
       </div>`;
   }
+  const tipEl = document.getElementById('empTipCard');
+  if(byTips.length===0){
+    tipEl.innerHTML = '<div class="empty">Нема евидентиран бакшиш оваа недела сè уште.</div>';
+  } else {
+    const topTip = byTips[0];
+    tipEl.innerHTML = `
+      <div class="stat" style="background:linear-gradient(135deg, #E4EEE8, var(--card)); border-color:var(--green); margin-bottom:20px;">
+        <div class="lbl">💰 Најголем бакшиш на неделата</div>
+        <div class="val">${esc(topTip.name)}</div>
+        <div style="font-size:12.5px; color:var(--ink-soft); margin-top:4px;">${topTip.tips} ден бакшиш вкупно</div>
+      </div>`;
+  }
 
   const tbody = document.getElementById('statsLeaderboardBody');
   tbody.innerHTML = leaderboard.length
-    ? leaderboard.map(w=> `<tr><td>${esc(w.name)}</td><td>${w.orders}</td><td>${w.revenue} ден</td></tr>`).join('')
-    : '<tr><td colspan="3">Нема завршени нарачки оваа недела.</td></tr>';
+    ? leaderboard.map(w=> `<tr><td>${esc(w.name)}</td><td>${w.orders}</td><td>${w.revenue} ден</td><td>${w.tips || 0} ден</td></tr>`).join('')
+    : '<tr><td colspan="4">Нема завршени нарачки оваа недела.</td></tr>';
 
-  saveWeekWinner(localDateStr(statsWeekStart), weekLabel, leaderboard);
+  saveWeekWinner(localDateStr(statsWeekStart), weekLabel, leaderboard, byTips);
 }
 
 document.getElementById('statsWeekPrev').addEventListener('click', ()=>{
@@ -1083,10 +1103,11 @@ function listenEmployeeHistory(){
   db.collection('employeeOfWeek').orderBy(firebase.firestore.FieldPath.documentId(), 'desc').limit(26)
     .onSnapshot(snap=>{
       const tbody = document.getElementById('empHistoryBody');
-      if(snap.empty){ tbody.innerHTML = '<tr><td colspan="4">Сè уште нема евидентирани недели.</td></tr>'; return; }
+      if(snap.empty){ tbody.innerHTML = '<tr><td colspan="5">Сè уште нема евидентирани недели.</td></tr>'; return; }
       tbody.innerHTML = snap.docs.map(d=>{
         const w = d.data();
-        return `<tr><td>${esc(w.weekLabel || d.id)}</td><td>${esc(w.waiterName)}</td><td>${w.orders}</td><td>${w.revenue} ден</td></tr>`;
+        const tipCell = w.topTipWaiterName ? `${esc(w.topTipWaiterName)} (${w.topTipAmount} ден)` : '—';
+        return `<tr><td>${esc(w.weekLabel || d.id)}</td><td>${esc(w.waiterName)}</td><td>${w.orders}</td><td>${w.revenue} ден</td><td>${tipCell}</td></tr>`;
       }).join('');
     }, err=> console.error('employee history listener', err));
 }
