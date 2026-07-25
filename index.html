@@ -307,6 +307,20 @@
     -webkit-appearance:none;
   }
   .drawer-foot{ padding: 16px 20px calc(20px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background: var(--card); }
+
+  .tip-block{ margin-bottom:14px; }
+  .tip-label{ font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.03em; }
+  .tip-options{ display:flex; gap:8px; margin-bottom:8px; }
+  .tip-options button{
+    flex:1; background:transparent; border:1px solid var(--line); border-radius:999px; padding:9px 4px;
+    font-weight:700; font-size:12.5px; color:var(--ink-soft);
+  }
+  .tip-options button.active{ background:var(--gold); color:var(--ink); border-color:transparent; }
+  #tipCustom{
+    width:100%; border:1px solid var(--line); border-radius:999px; padding:9px 14px; font-size:13px;
+    background:#fff; color:var(--ink);
+  }
+  #tipCustom:focus{ outline:2px solid var(--gold-dark); }
   .total-row{ display:flex; justify-content:space-between; font-size:15px; margin-bottom:12px; }
   .total-row .amt{ font-weight:800; color:var(--ink); font-size:19px; }
   .place-btn{
@@ -399,6 +413,17 @@
   </div>
   <div class="drawer-body" id="drawerBody"></div>
   <div class="drawer-foot">
+    <div class="tip-block">
+      <div class="tip-label">Бакшиш</div>
+      <div class="tip-options" id="tipOptions">
+        <button data-pct="0" class="active">Без</button>
+        <button data-pct="5">5%</button>
+        <button data-pct="10">10%</button>
+        <button data-pct="15">15%</button>
+      </div>
+      <input type="number" id="tipCustom" placeholder="или внеси износ во ден" min="0" step="1">
+    </div>
+    <div class="total-row" id="tipRow" style="display:none;"><span>Бакшиш</span><span class="amt" id="tipAmt">0 ден</span></div>
     <div class="total-row"><span>Вкупно</span><span class="amt" id="totalAmt">0 ден</span></div>
     <button class="place-btn" id="placeBtn">Нарачај</button>
   </div>
@@ -758,12 +783,52 @@ function itemsInCart(){
 function cartTotal(){
   return itemsInCart().reduce((s,i)=> s + i.price*i.qty, 0);
 }
+
+/* ---------------- tip (бакшиш) ---------------- */
+let tipPct = 0;
+let tipCustomValue = null; // set when the person types a specific amount, overrides tipPct
+
+const tipOptions = document.getElementById('tipOptions');
+const tipCustomInput = document.getElementById('tipCustom');
+const tipRow = document.getElementById('tipRow');
+const tipAmt = document.getElementById('tipAmt');
+
+function computeTip(){
+  const subtotal = cartTotal();
+  if(tipCustomValue !== null) return Math.max(0, Math.round(tipCustomValue));
+  return Math.round(subtotal * tipPct / 100);
+}
+tipOptions.addEventListener('click', e=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  tipPct = parseInt(btn.dataset.pct, 10);
+  tipCustomValue = null;
+  tipCustomInput.value = '';
+  [...tipOptions.children].forEach(b=> b.classList.toggle('active', b===btn));
+  updateCartUI();
+});
+tipCustomInput.addEventListener('input', ()=>{
+  const v = parseFloat(tipCustomInput.value);
+  tipCustomValue = tipCustomInput.value==='' ? null : (isNaN(v) ? 0 : v);
+  [...tipOptions.children].forEach(b=> b.classList.remove('active'));
+  updateCartUI();
+});
+function resetTip(){
+  tipPct = 0; tipCustomValue = null;
+  tipCustomInput.value = '';
+  [...tipOptions.children].forEach(b=> b.classList.toggle('active', b.dataset.pct==='0'));
+}
+
 function updateCartUI(){
   const items = itemsInCart();
   const count = items.reduce((s,i)=> s+i.qty, 0);
   cartCount.textContent = count;
   cartFab.classList.toggle('show', count > 0);
-  totalAmt.textContent = cartTotal() + ' ден';
+  const subtotal = cartTotal();
+  const tip = computeTip();
+  tipRow.style.display = tip > 0 ? 'flex' : 'none';
+  tipAmt.textContent = tip + ' ден';
+  totalAmt.textContent = (subtotal + tip) + ' ден';
   placeBtn.disabled = count === 0 || (orderType==='table' && !tableNumber);
 
   drawerBody.innerHTML = '';
@@ -814,6 +879,7 @@ placeBtn.addEventListener('click', async ()=>{
   const items = itemsInCart().map(i=>({ id:i.id, name:i.name, vol:i.vol||null, price:i.price, qty:i.qty }));
   const note = localStorage.getItem('radost_note') || '';
   const waiter = waiters.find(w=>w.id===selectedWaiterId);
+  const tip = computeTip();
 
   try{
     const orderNumber = await getNextOrderNumber();
@@ -823,6 +889,8 @@ placeBtn.addEventListener('click', async ()=>{
       table: orderType === 'table' ? tableNumber : null,
       items,
       total: cartTotal(),
+      tip,
+      grandTotal: cartTotal() + tip,
       note,
       waiterId: waiter ? waiter.id : null,
       waiterName: waiter ? waiter.name : null,
@@ -841,6 +909,7 @@ placeBtn.addEventListener('click', async ()=>{
     cart = {};
     saveCart();
     localStorage.removeItem('radost_note');
+    resetTip();
     closeDrawer();
     confirmScreen.classList.add('show');
     document.querySelectorAll('.qty-slot').forEach(slot=> renderQtyControl(slot, slot.dataset.id));
@@ -871,7 +940,9 @@ document.getElementById('printReceiptBtn').addEventListener('click', ()=>{
     <hr>
     ${lastOrder.items.map(i=>`<div class="r-line"><span>${i.qty}× ${i.name}${i.vol?' ('+i.vol+')':''}</span><span>${i.price*i.qty} ден</span></div>`).join('')}
     <hr>
-    <div class="r-line"><b>Вкупно</b><b>${lastOrder.total} ден</b></div>
+    <div class="r-line"><span>Меѓузбир</span><span>${lastOrder.total} ден</span></div>
+    ${lastOrder.tip ? `<div class="r-line"><span>Бакшиш</span><span>${lastOrder.tip} ден</span></div>` : ''}
+    <div class="r-line"><b>Вкупно</b><b>${lastOrder.grandTotal || lastOrder.total} ден</b></div>
     ${lastOrder.note ? `<div class="r-line"><span>Забелешка</span><span>${lastOrder.note}</span></div>` : ''}
   `;
   window.print();
