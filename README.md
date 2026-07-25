@@ -88,9 +88,16 @@ In the **Инвентар** tab, two buttons above the item list export directly
 
 One browser quirk worth knowing: sound can only start after a user has clicked something on the page (a login is enough) — this is a standard browser autoplay rule, not a bug, and the waiter panel already primes it for you at login.
 
+## Order lifecycle
+
+1. Customer orders → appears in **Отворени нарачки** (open orders) for any free waiter to claim, or straight in the chosen waiter's queue.
+2. Waiter taps **Заврши нарачка** once it's ready/delivered → the order moves to **Сметки**, not yet to "Завршени денес" — it's prepared, but not paid for yet.
+3. In **Сметки**, the waiter brings the bill to the table (🖨 prints it) and taps **Наплати** once the guest has paid.
+4. Only then does it move into **Завршени денес** — that tab is specifically "completed and paid today", not just "completed".
+
 ## Bills — paid vs open
 
-`waiter.html` has a **Сметки** tab showing every completed (prepared/delivered) order, grouped by table number — orders without a table (takeaway) are listed individually instead. This is the waiter's tool for the whole "bring the bill, confirm payment" workflow: each group shows "Платено" (paid) or "Отворено" (open), a 🖨 button that prints a consolidated bill for that table to physically hand to the guest, and a button to flip the paid status — marking a table paid settles every unpaid order on it at once. By default only open tabs show; there's a toggle to also see ones already settled. This lives only in the waiter panel, not the admin panel, since it's a floor-service action.
+`waiter.html` has a **Сметки** tab showing every order that's been completed but not yet paid, grouped by table number — orders without a table (takeaway) are listed individually instead. Each group shows "Платено" (paid) or "Отворено" (open), a 🖨 button that prints a consolidated bill for that table to physically hand to the guest, and a **Наплати** button — tapping it settles every unpaid order on that table at once and moves them into "Завршени денес". By default only open tabs show; there's a toggle to also see ones already settled. This lives only in the waiter panel, not the admin panel, since it's a floor-service action.
 
 ## Tips (бакшиш)
 
