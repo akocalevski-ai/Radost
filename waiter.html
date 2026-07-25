@@ -449,7 +449,8 @@ function renderCard(o, done=false){
       ${o.items.map(i=>`<div class="it"><span>${i.qty}× ${i.name}${i.vol?' ('+i.vol+')':''}</span><span>${i.price*i.qty} ден</span></div>`).join('')}
     </div>
     ${o.note ? `<div class="oc-note">${o.note}</div>` : ''}
-    <div class="oc-total"><span>Вкупно</span><span>${o.total} ден</span></div>
+    ${o.tip ? `<div class="oc-total" style="font-weight:600; font-size:12.5px;"><span>Бакшиш</span><span>${o.tip} ден</span></div>` : ''}
+    <div class="oc-total"><span>Вкупно</span><span>${o.grandTotal || o.total} ден</span></div>
     <div class="oc-actions"></div>
   `;
   const actions = card.querySelector('.oc-actions');
@@ -531,10 +532,32 @@ function printOrder(o){
       <div class="r-line"><span>Келнер</span><span>${o.waiterName||myName}</span></div>
       <div class="r-line"><span>Време</span><span>${time}</span></div>
       <hr>${itemsHtml}<hr>
-      <div class="r-line"><b>Вкупно</b><b>${o.total} ден</b></div>
+      <div class="r-line"><span>Меѓузбир</span><span>${o.total} ден</span></div>
+      ${o.tip ? `<div class="r-line"><span>Бакшиш</span><span>${o.tip} ден</span></div>` : ''}
+      <div class="r-line"><b>Вкупно</b><b>${o.grandTotal || o.total} ден</b></div>
       ${o.note ? `<div class="r-line"><span>Забелешка</span><span>${o.note}</span></div>` : ''}
     </div>`;
   el.innerHTML = slip('примерок за клиент') + slip('примерок за келнер');
+  window.print();
+}
+
+function printBill(title, orders){
+  const el = document.getElementById('printReceipt');
+  const time = new Date().toLocaleTimeString('mk-MK', {hour:'2-digit',minute:'2-digit'});
+  const amt = o=> o.grandTotal || o.total;
+  const sum = orders.reduce((s,o)=> s+amt(o), 0);
+  const body = orders.map(o=> `
+    <div class="r-line"><b>Нарачка #${o.orderNumber}</b><span></span></div>
+    ${o.items.map(i=>`<div class="r-line"><span>${i.qty}× ${i.name}${i.vol?' ('+i.vol+')':''}</span><span>${i.price*i.qty} ден</span></div>`).join('')}
+    ${o.tip ? `<div class="r-line"><span>Бакшиш</span><span>${o.tip} ден</span></div>` : ''}
+  `).join('<hr>');
+  el.innerHTML = `
+    <div class="slip">
+      <h3>radost — сметка</h3>
+      <div class="r-line"><span>${esc(title)}</span><span>${time}</span></div>
+      <hr>${body}<hr>
+      <div class="r-line"><b>Вкупно за плаќање</b><b>${sum} ден</b></div>
+    </div>`;
   window.print();
 }
 
@@ -618,8 +641,9 @@ async function togglePaid(orderId, makePaid){
 function billGroupCard(title, orders){
   const unpaidOrders = orders.filter(o=> !o.paid);
   const allPaid = unpaidOrders.length===0;
-  const sum = orders.reduce((s,o)=> s+o.total, 0);
-  const unpaidSum = unpaidOrders.reduce((s,o)=> s+o.total, 0);
+  const amt = o=> o.grandTotal || o.total;
+  const sum = orders.reduce((s,o)=> s+amt(o), 0);
+  const unpaidSum = unpaidOrders.reduce((s,o)=> s+amt(o), 0);
 
   const card = document.createElement('div');
   card.className = 'bill-group';
@@ -630,14 +654,26 @@ function billGroupCard(title, orders){
     </div>
     ${orders.map(o=> `
       <div class="bill-line">
-        <span>#${o.orderNumber} · ${o.items.reduce((s,i)=>s+i.qty,0)} ставки${o.waiterName ? ' · '+esc(o.waiterName) : ''}</span>
-        <span>${o.total} ден</span>
+        <span>#${o.orderNumber} · ${o.items.reduce((s,i)=>s+i.qty,0)} ставки${o.tip ? ' · +'+o.tip+' бакшиш' : ''}${o.waiterName ? ' · '+esc(o.waiterName) : ''}</span>
+        <span>${amt(o)} ден</span>
       </div>
     `).join('')}
     <div class="bill-total"><span>Вкупно${!allPaid ? ' (неплатено: '+unpaidSum+' ден)' : ''}</span><span>${sum} ден</span></div>
   `;
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex; gap:8px; margin-top:6px;';
+
+  const printBtn = document.createElement('button');
+  printBtn.className = 'pay-btn mark-open';
+  printBtn.style.flex = '0 0 54px';
+  printBtn.textContent = '🖨';
+  printBtn.title = 'Печати сметка за маса';
+  printBtn.addEventListener('click', ()=> printBill(title, orders));
+  btnRow.appendChild(printBtn);
+
   const btn = document.createElement('button');
   btn.className = 'pay-btn ' + (allPaid ? 'mark-open' : 'mark-paid');
+  btn.style.flex = '1';
   btn.textContent = allPaid ? 'Означи како отворено' : 'Означи како платено';
   btn.addEventListener('click', async ()=>{
     btn.disabled = true;
@@ -648,7 +684,8 @@ function billGroupCard(title, orders){
     }
     btn.disabled = false;
   });
-  card.appendChild(btn);
+  btnRow.appendChild(btn);
+  card.appendChild(btnRow);
   return card;
 }
 
