@@ -88,6 +88,22 @@ In the **Инвентар** tab, two buttons above the item list export directly
 
 One browser quirk worth knowing: sound can only start after a user has clicked something on the page (a login is enough) — this is a standard browser autoplay rule, not a bug, and the waiter panel already primes it for you at login.
 
+## Waiter panel layout
+
+Tabs are ordered Отворени нарачки → Сметки → Завршени денес → Распоред. "Завршени денес" now shows a small summary card at the top (orders naplati'd today, total revenue, and tips if any) and only lists **your own** paid orders — a colleague's settled tables won't clutter your daily view. "Сметки" stays shared across all waiters, since collecting payment on any open table is everyone's job.
+
+## Admin panel layout
+
+Tabs are ordered Преглед → Нарачки → Распоред → Статистика → Келнери → Мени → Магацин.
+
+## Biggest tip of the week
+
+Alongside "🏆 Вработен на неделата" in the **Статистика** tab, there's now a second card: "💰 Најголем бакшиш на неделата" — the waiter who collected the most tips that week. It's a separate ranking from revenue (a different waiter can win each), shown in the weekly leaderboard table and logged into the same historical record so you can look back at any past week.
+
+## English / Macedonian toggle
+
+The customer ordering page (`index.html`) has an MK/EN switch in the top-right corner. It translates the whole ordering experience — category names, section headers, the built-in menu items, cart, tip section, and receipts. One limitation worth knowing: the English text is a static dictionary covering the original default menu; any item you add or rename later from the admin **Мени** tab won't have an English translation and will just display in Macedonian even with EN selected — there's no per-language name field in the data model (yet).
+
 ## Order lifecycle
 
 1. Customer orders → appears in **Отворени нарачки** (open orders) for any free waiter to claim, or straight in the chosen waiter's queue.
