@@ -90,7 +90,11 @@ One browser quirk worth knowing: sound can only start after a user has clicked s
 
 ## Bills — paid vs open
 
-Both `waiter.html` and `admin.html` have a **Сметки** tab showing every completed (prepared/delivered) order, grouped by table number — orders without a table (takeaway) are listed individually instead. Each group shows "Платено" (paid) or "Отворено" (open) with a button to flip it — marking a table paid marks every unpaid order on it at once. By default only open tabs show; there's a toggle to also show ones already settled.
+`waiter.html` has a **Сметки** tab showing every completed (prepared/delivered) order, grouped by table number — orders without a table (takeaway) are listed individually instead. This is the waiter's tool for the whole "bring the bill, confirm payment" workflow: each group shows "Платено" (paid) or "Отворено" (open), a 🖨 button that prints a consolidated bill for that table to physically hand to the guest, and a button to flip the paid status — marking a table paid settles every unpaid order on it at once. By default only open tabs show; there's a toggle to also see ones already settled. This lives only in the waiter panel, not the admin panel, since it's a floor-service action.
+
+## Tips (бакшиш)
+
+The customer ordering page now has a tip section in the cart, right above the total: quick buttons for 0/5/10/15%, or a free-text box to enter a specific amount in ден. The chosen tip is added on top of the item total (shown as its own line before the grand total), included on both the customer's and the kitchen's printed receipts, and carried through to the order record — so it's reflected in the waiter's bill, the admin's revenue totals, and the weekly employee stats (a tip is money that order generated, so it counts the same way).
 
 ## Deleting staff
 
